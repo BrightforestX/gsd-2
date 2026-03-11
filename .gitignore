@@ -34,3 +34,5 @@ dist/
 .gsd*.tgz
 .artifacts/
 AGENTS.md
+.bg-shell/
+TODOS.md

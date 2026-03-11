@@ -64,11 +64,13 @@ import {
 } from "./worktree.ts";
 import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { makeUI, GLYPH, INDENT } from "../shared/ui.js";
+import { showNextAction } from "../shared/next-action-ui.js";
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
 let active = false;
 let paused = false;
+let stepMode = false;
 let verbose = false;
 let cmdCtx: ExtensionCommandContext | null = null;
 let basePath = "";
@@ -101,6 +103,7 @@ let idleWatchdogHandle: ReturnType<typeof setInterval> | null = null;
 export interface AutoDashboardData {
   active: boolean;
   paused: boolean;
+  stepMode: boolean;
   startTime: number;
   elapsed: number;
   currentUnit: { type: string; id: string; startedAt: number } | null;
@@ -117,6 +120,7 @@ export function getAutoDashboardData(): AutoDashboardData {
   return {
     active,
     paused,
+    stepMode,
     startTime: autoStartTime,
     elapsed: (active || paused) ? Date.now() - autoStartTime : 0,
     currentUnit: currentUnit ? { ...currentUnit } : null,
@@ -135,6 +139,10 @@ export function isAutoActive(): boolean {
 
 export function isAutoPaused(): boolean {
   return paused;
+}
+
+export function isStepMode(): boolean {
+  return stepMode;
 }
 
 function clearUnitTimeout(): void {
@@ -173,6 +181,7 @@ export async function stopAuto(ctx?: ExtensionContext, pi?: ExtensionAPI): Promi
   resetMetrics();
   active = false;
   paused = false;
+  stepMode = false;
   lastUnit = null;
   currentUnit = null;
   currentMilestoneId = null;
@@ -207,8 +216,9 @@ export async function pauseAuto(ctx?: ExtensionContext, _pi?: ExtensionAPI): Pro
   // — all needed for resume and dashboard display
   ctx?.ui.setStatus("gsd-auto", "paused");
   ctx?.ui.setWidget("gsd-progress", undefined);
+  const resumeCmd = stepMode ? "/gsd next" : "/gsd auto";
   ctx?.ui.notify(
-    "Auto-mode paused (Escape). Type to interact, or /gsd auto to resume.",
+    `${stepMode ? "Step" : "Auto"}-mode paused (Escape). Type to interact, or ${resumeCmd} to resume.`,
     "info",
   );
 }
@@ -218,19 +228,24 @@ export async function startAuto(
   pi: ExtensionAPI,
   base: string,
   verboseMode: boolean,
+  options?: { step?: boolean },
 ): Promise<void> {
+  const requestedStepMode = options?.step ?? false;
+
   // If resuming from paused state, just re-activate and dispatch next unit.
   // The conversation is still intact — no need to reinitialize everything.
   if (paused) {
     paused = false;
     active = true;
     verbose = verboseMode;
+    // Allow switching between step/auto on resume
+    stepMode = requestedStepMode;
     cmdCtx = ctx;
     basePath = base;
     // Re-initialize metrics in case ledger was lost during pause
     if (!getLedger()) initMetrics(base);
-    ctx.ui.setStatus("gsd-auto", "auto");
-    ctx.ui.notify("Auto-mode resumed.", "info");
+    ctx.ui.setStatus("gsd-auto", stepMode ? "next" : "auto");
+    ctx.ui.notify(stepMode ? "Step-mode resumed." : "Auto-mode resumed.", "info");
     await dispatchNextUnit(ctx, pi);
     return;
   }
@@ -286,7 +301,7 @@ export async function startAuto(
   // No active work at all — start a new milestone via the discuss flow.
   if (!state.activeMilestone || state.phase === "complete") {
     const { showSmartEntry } = await import("./guided-flow.js");
-    await showSmartEntry(ctx, pi, base);
+    await showSmartEntry(ctx, pi, base, { step: requestedStepMode });
     return;
   }
 
@@ -298,13 +313,14 @@ export async function startAuto(
     const hasContext = !!(contextFile && await loadFile(contextFile));
     if (!hasContext) {
       const { showSmartEntry } = await import("./guided-flow.js");
-      await showSmartEntry(ctx, pi, base);
+      await showSmartEntry(ctx, pi, base, { step: requestedStepMode });
       return;
     }
     // Has context, no roadmap — auto-mode will research + plan it
   }
 
   active = true;
+  stepMode = requestedStepMode;
   verbose = verboseMode;
   cmdCtx = ctx;
   basePath = base;
@@ -324,12 +340,13 @@ export async function startAuto(
     snapshotSkills();
   }
 
-  ctx.ui.setStatus("gsd-auto", "auto");
+  ctx.ui.setStatus("gsd-auto", stepMode ? "next" : "auto");
+  const modeLabel = stepMode ? "Step-mode" : "Auto-mode";
   const pendingCount = state.registry.filter(m => m.status !== 'complete').length;
   const scopeMsg = pendingCount > 1
     ? `Will loop through ${pendingCount} milestones.`
     : "Will loop until milestone complete.";
-  ctx.ui.notify(`Auto-mode started. ${scopeMsg}`, "info");
+  ctx.ui.notify(`${modeLabel} started. ${scopeMsg}`, "info");
 
   // Dispatch the first unit
   await dispatchNextUnit(ctx, pi);
@@ -361,7 +378,115 @@ export async function handleAgentEnd(
     }
   }
 
+  // In step mode, pause and show a wizard instead of immediately dispatching
+  if (stepMode) {
+    await showStepWizard(ctx, pi);
+    return;
+  }
+
   await dispatchNextUnit(ctx, pi);
+}
+
+// ─── Step Mode Wizard ─────────────────────────────────────────────────────
+
+/**
+ * Show the step-mode wizard after a unit completes.
+ * Derives the next unit from disk state and presents it to the user.
+ * If the user confirms, dispatches the next unit. If not, pauses.
+ */
+async function showStepWizard(
+  ctx: ExtensionContext,
+  pi: ExtensionAPI,
+): Promise<void> {
+  if (!cmdCtx) return;
+
+  const state = await deriveState(basePath);
+  const mid = state.activeMilestone?.id;
+
+  // Build summary of what just completed
+  const justFinished = currentUnit
+    ? `${unitVerb(currentUnit.type)} ${currentUnit.id}`
+    : "previous unit";
+
+  // If no active milestone or everything is complete, stop
+  if (!mid || state.phase === "complete") {
+    await stopAuto(ctx, pi);
+    return;
+  }
+
+  // Peek at what's next by examining state
+  const nextDesc = describeNextUnit(state);
+
+  const choice = await showNextAction(cmdCtx, {
+    title: `GSD — ${justFinished} complete`,
+    summary: [
+      `${mid}: ${state.activeMilestone?.title ?? mid}`,
+      ...(state.activeSlice ? [`${state.activeSlice.id}: ${state.activeSlice.title}`] : []),
+    ],
+    actions: [
+      {
+        id: "continue",
+        label: nextDesc.label,
+        description: nextDesc.description,
+        recommended: true,
+      },
+      {
+        id: "auto",
+        label: "Switch to auto",
+        description: "Continue without pausing between steps.",
+      },
+      {
+        id: "status",
+        label: "View status",
+        description: "Open the dashboard.",
+      },
+    ],
+    notYetMessage: "Run /gsd next when ready to continue.",
+  });
+
+  if (choice === "continue") {
+    await dispatchNextUnit(ctx, pi);
+  } else if (choice === "auto") {
+    stepMode = false;
+    ctx.ui.setStatus("gsd-auto", "auto");
+    ctx.ui.notify("Switched to auto-mode.", "info");
+    await dispatchNextUnit(ctx, pi);
+  } else if (choice === "status") {
+    // Show status then re-show the wizard
+    const { fireStatusViaCommand } = await import("./commands.js");
+    await fireStatusViaCommand(ctx as ExtensionCommandContext);
+    await showStepWizard(ctx, pi);
+  } else {
+    // "not_yet" — pause
+    await pauseAuto(ctx, pi);
+  }
+}
+
+/**
+ * Describe what the next unit will be, based on current state.
+ */
+function describeNextUnit(state: GSDState): { label: string; description: string } {
+  const sid = state.activeSlice?.id;
+  const sTitle = state.activeSlice?.title;
+  const tid = state.activeTask?.id;
+  const tTitle = state.activeTask?.title;
+
+  switch (state.phase) {
+    case "pre-planning":
+      return { label: "Research & plan milestone", description: "Scout the landscape and create the roadmap." };
+    case "planning":
+      return { label: `Plan ${sid}: ${sTitle}`, description: "Research and decompose into tasks." };
+    case "executing":
+      return { label: `Execute ${tid}: ${tTitle}`, description: "Run the next task in a fresh session." };
+    case "summarizing":
+      return { label: `Complete ${sid}: ${sTitle}`, description: "Write summary, UAT, and merge to main." };
+    case "replanning-slice":
+      return { label: `Replan ${sid}: ${sTitle}`, description: "Blocker found — replan the slice." };
+    case "completing-milestone":
+      return { label: "Complete milestone", description: "Write milestone summary." };
+    default:
+      return { label: "Continue", description: "Execute the next step." };
+  }
 }
 
 // ─── Progress Widget ──────────────────────────────────────────────────────
@@ -464,7 +589,8 @@ function updateProgressWidget(
           ? theme.fg("accent", GLYPH.statusActive)
           : theme.fg("dim", GLYPH.statusPending);
         const elapsed = formatAutoElapsed();
-        const headerLeft = `${pad}${dot} ${theme.fg("accent", theme.bold("GSD"))}  ${theme.fg("success", "AUTO")}`;
+        const modeTag = stepMode ? "NEXT" : "AUTO";
+        const headerLeft = `${pad}${dot} ${theme.fg("accent", theme.bold("GSD"))}  ${theme.fg("success", modeTag)}`;
         const headerRight = elapsed ? theme.fg("dim", elapsed) : "";
         lines.push(rightAlign(headerLeft, headerRight, width));
 

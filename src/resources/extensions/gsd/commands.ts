@@ -10,8 +10,8 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deriveState } from "./state.js";
 import { GSDDashboardOverlay } from "./dashboard-overlay.js";
-import { showSmartEntry, showQueue, showDiscuss } from "./guided-flow.js";
-import { startAuto, stopAuto, isAutoActive, isAutoPaused } from "./auto.js";
+import { showQueue, showDiscuss } from "./guided-flow.js";
+import { startAuto, stopAuto, isAutoActive, isAutoPaused, isStepMode } from "./auto.js";
 import {
   getGlobalGSDPreferencesPath,
   getLegacyGlobalGSDPreferencesPath,
@@ -52,10 +52,10 @@ function dispatchDoctorHeal(pi: ExtensionAPI, scope: string | undefined, reportT
 
 export function registerGSDCommand(pi: ExtensionAPI): void {
   pi.registerCommand("gsd", {
-    description: "GSD — Get Shit Done: /gsd auto|stop|status|queue|prefs|doctor|migrate",
+    description: "GSD — Get Shit Done: /gsd next|auto|stop|status|queue|prefs|doctor|migrate",
 
     getArgumentCompletions: (prefix: string) => {
-      const subcommands = ["auto", "stop", "status", "queue", "discuss", "prefs", "doctor", "migrate"];
+      const subcommands = ["next", "auto", "stop", "status", "queue", "discuss", "prefs", "doctor", "migrate"];
       const parts = prefix.trim().split(/\s+/);
 
       if (parts.length <= 1) {
@@ -112,6 +112,12 @@ export function registerGSDCommand(pi: ExtensionAPI): void {
         return;
       }
 
+      if (trimmed === "next" || trimmed.startsWith("next ")) {
+        const verboseMode = trimmed.includes("--verbose");
+        await startAuto(ctx, pi, process.cwd(), verboseMode, { step: true });
+        return;
+      }
+
       if (trimmed === "auto" || trimmed.startsWith("auto ")) {
         const verboseMode = trimmed.includes("--verbose");
         await startAuto(ctx, pi, process.cwd(), verboseMode);
@@ -143,12 +149,13 @@ export function registerGSDCommand(pi: ExtensionAPI): void {
       }
 
       if (trimmed === "") {
-        await showSmartEntry(ctx, pi, process.cwd());
+        // Bare /gsd defaults to step mode
+        await startAuto(ctx, pi, process.cwd(), false, { step: true });
         return;
       }
 
       ctx.ui.notify(
-        `Unknown: /gsd ${trimmed}. Use /gsd, /gsd auto, /gsd stop, /gsd status, /gsd queue, /gsd discuss, /gsd prefs [global|project|status], /gsd doctor [audit|fix|heal] [M###/S##], or /gsd migrate <path>.`,
+        `Unknown: /gsd ${trimmed}. Use /gsd, /gsd next, /gsd auto, /gsd stop, /gsd status, /gsd queue, /gsd discuss, /gsd prefs [global|project|status], /gsd doctor [audit|fix|heal] [M###/S##], or /gsd migrate <path>.`,
         "warning",
       );
     },
