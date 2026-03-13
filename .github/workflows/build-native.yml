@@ -171,4 +171,11 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           # Skip prepublishOnly (build already done upstream) — just publish the tarball
-          npm publish --ignore-scripts
+          OUTPUT=$(npm publish --ignore-scripts 2>&1) && echo "$OUTPUT" || {
+            if echo "$OUTPUT" | grep -q "cannot publish over the previously published\|You cannot publish over"; then
+              echo "Already published, skipping"
+            else
+              echo "$OUTPUT"
+              exit 1
+            fi
+          }
