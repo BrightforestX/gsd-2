@@ -6,6 +6,41 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-03-13
+
+### Added
+- Native Rust engine with high-performance N-API modules replacing JS/WASM dependencies:
+  - **grep** — ripgrep-backed content and filesystem search
+  - **glob** — gitignore-aware file discovery with scan caching
+  - **ps** — cross-platform process tree management
+  - **clipboard** — native clipboard access via arboard (text + image)
+  - **highlight** — syntect-based syntax highlighting (replaces `cli-highlight`)
+  - **ast** — structural code search and rewrite via ast-grep (38+ languages)
+  - **html** — HTML-to-Markdown conversion
+  - **text** — ANSI-aware text measurement, wrapping, truncation, and slicing
+  - **fd** — fuzzy file path discovery for autocomplete
+  - **image** — decode, encode, and resize images (PNG, JPEG, GIF, WebP)
+- Background shell `env` action to query shell session environment state
+- Background shell `run` action for blocking command execution on persistent sessions
+- Background shell `session` process type for persistent interactive sessions
+- Hashline edits — line-hash-anchored file editing
+- Universal config discovery extension
+
+### Changed
+- Find tool uses native Rust glob instead of `fd` CLI binary
+- Syntax highlighting uses native syntect instead of `cli-highlight` npm package
+- Autocomplete uses native fd module instead of `fd` CLI subprocess
+- Text utilities (visible width, wrapping, truncation, slicing) use native Rust instead of JS
+- Clipboard operations use native arboard instead of platform-specific CLI tools
+- Image processing uses native Rust `image` crate instead of Photon WASM
+
+### Fixed
+- Prevent move operation from silently overwriting existing files
+- Separate access/unlink error handling in delete path
+- Untrack runtime files from slice branch before squash-merge
+- Copy LSP defaults.json to dist during build
+- Native module test assertions
+
 ## [2.9.0] - 2026-03-13
 
 ### Added
@@ -355,7 +390,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - License updated to MIT
 
-[Unreleased]: https://github.com/gsd-build/gsd-2/compare/v2.9.0...HEAD
+[Unreleased]: https://github.com/gsd-build/gsd-2/compare/v2.10.0...HEAD
+[2.10.0]: https://github.com/gsd-build/gsd-2/compare/v2.9.0...v2.10.0
 [2.9.0]: https://github.com/gsd-build/gsd-2/compare/v2.8.3...v2.9.0
 [2.8.3]: https://github.com/gsd-build/gsd-2/compare/v2.8.2...v2.8.3
 [2.8.2]: https://github.com/gsd-build/gsd-2/compare/v2.8.1...v2.8.2
