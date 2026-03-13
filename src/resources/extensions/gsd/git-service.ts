@@ -28,6 +28,8 @@ export interface GitPreferences {
   commit_type?: string;
 }
 
+export const VALID_BRANCH_NAME = /^[a-zA-Z0-9_\-\/.]+$/;
+
 export interface CommitOptions {
   message: string;
   allowEmpty?: boolean;
@@ -123,9 +125,11 @@ export class GitServiceImpl {
   /**
    * Smart staging: `git add -A` excluding GSD runtime paths via pathspec.
    * Falls back to plain `git add -A` if the exclusion pathspec fails.
+   * @param extraExclusions Additional pathspec exclusions beyond RUNTIME_EXCLUSION_PATHS.
    */
-  private smartStage(): void {
-    const excludes = RUNTIME_EXCLUSION_PATHS.map(p => `':(exclude)${p}'`);
+  private smartStage(extraExclusions: readonly string[] = []): void {
+    const allExclusions = [...RUNTIME_EXCLUSION_PATHS, ...extraExclusions];
+    const excludes = allExclusions.map(p => `':(exclude)${p}'`);
     const args = ["add", "-A", "--", ".", ...excludes];
     try {
       this.git(args);
@@ -157,13 +161,14 @@ export class GitServiceImpl {
   /**
    * Auto-commit dirty working tree with a conventional chore message.
    * Returns the commit message on success, or null if nothing to commit.
+   * @param extraExclusions Additional paths to exclude from staging (e.g. [".gsd/"] for pre-switch commits).
    */
-  autoCommit(unitType: string, unitId: string): string | null {
+  autoCommit(unitType: string, unitId: string, extraExclusions: readonly string[] = []): string | null {
     // Quick check: is there anything dirty at all?
     const status = this.git(["status", "--short"], { allowFailure: true });
     if (!status) return null;
 
-    this.smartStage();
+    this.smartStage(extraExclusions);
 
     // After smart staging, check if anything was actually staged
     // (all changes might have been runtime files that got excluded)
@@ -297,8 +302,9 @@ export class GitServiceImpl {
       }
     }
 
-    // Auto-commit dirty state via smart staging before checkout
-    this.autoCommit("pre-switch", current);
+    // Auto-commit dirty state via smart staging before checkout.
+    // Exclude .gsd/ to prevent merge conflicts when both branches modify planning artifacts.
+    this.autoCommit("pre-switch", current, [".gsd/"]);
 
     this.git(["checkout", branch]);
     return created;
@@ -312,7 +318,8 @@ export class GitServiceImpl {
     const current = this.getCurrentBranch();
     if (current === mainBranch) return;
 
-    this.autoCommit("pre-switch", current);
+    // Exclude .gsd/ to prevent merge conflicts when both branches modify planning artifacts.
+    this.autoCommit("pre-switch", current, [".gsd/"]);
 
     this.git(["checkout", mainBranch]);
   }
