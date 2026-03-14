@@ -6,8 +6,26 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.10.9] - 2026-03-14
+
+### Added
+- Team collaboration: multiple users can work on the same repo without milestone name clashes by checking in `.gsd/` planning artifacts (#338)
+
+### Changed
+- Execute-task loop detection uses adaptive reconciliation instead of hard-stopping, reducing false positives (#342)
+- Memory storage switched from better-sqlite3 to sql.js (WASM) for Node 25+ compatibility (#356)
+
 ### Fixed
-- Fixed residual `gsd auto` branch-switch failure: `git checkout -- .gsd/` only reverts *tracked* runtime files; a new `discardUntrackedRuntimeFiles` step (`git clean -fdx`) now also removes untracked runtime files (e.g. `STATE.md`) that would otherwise trigger "The following untracked working tree files would be overwritten by checkout" when the target branch still has them committed
+- Node 22.22+ compatibility: `.ts` import extensions normalized to `.js` for module resolution (#354)
+- Infinite loop when complete-slice merges to main are interrupted (#345)
+- Credential backoff no longer triggers on transport errors; quota exhaustion handled gracefully (#353)
+- OAuth-backed providers (Gemini) no longer crash on quota exhaustion (#347)
+- Secrets skip in auto mode no longer crashes (#352)
+- Untracked runtime files discarded before branch switch to prevent checkout conflicts (#346)
+- TUI crash/corruption on code blocks with lines exceeding terminal width (#343)
+- Infinite skip loop in `gsd auto` broken by adding roadmap completion check
+- Model ID variant suffix stripped correctly for OAuth Anthropic API calls
+- `.gsd/` planning artifacts force-added and `handleAgentEnd` reentrancy guarded (#341)
 
 ## [2.10.8] - 2026-03-14
 
@@ -461,7 +479,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - License updated to MIT
 
-[Unreleased]: https://github.com/gsd-build/gsd-2/compare/v2.10.8...HEAD
+[Unreleased]: https://github.com/gsd-build/gsd-2/compare/v2.10.9...HEAD
+[2.10.9]: https://github.com/gsd-build/gsd-2/compare/v2.10.8...v2.10.9
 [2.10.8]: https://github.com/gsd-build/gsd-2/compare/v2.10.7...v2.10.8
 [2.10.7]: https://github.com/gsd-build/gsd-2/compare/v2.10.6...v2.10.7
 [2.10.6]: https://github.com/gsd-build/gsd-2/compare/v2.10.5...v2.10.6
