@@ -18,6 +18,19 @@ const SUBCOMMAND_HELP: Record<string, string> = {
     '',
     'Equivalent to: npm install -g gsd-pi@latest',
   ].join('\n'),
+
+  sessions: [
+    'Usage: gsd sessions',
+    '',
+    'List all saved sessions for the current directory and interactively',
+    'pick one to resume. Shows date, message count, and a preview of the',
+    'first message for each session.',
+    '',
+    'Sessions are stored per-directory, so you only see sessions that were',
+    'started from the current working directory.',
+    '',
+    'Compare with --continue (-c) which always resumes the most recent session.',
+  ].join('\n'),
 }
 
 export function printHelp(version: string): void {
@@ -37,6 +50,7 @@ export function printHelp(version: string): void {
   process.stdout.write('\nSubcommands:\n')
   process.stdout.write('  config                   Re-run the setup wizard\n')
   process.stdout.write('  update                   Update GSD to the latest version\n')
+  process.stdout.write('  sessions                 List and resume a past session\n')
   process.stdout.write('\nRun gsd <subcommand> --help for subcommand-specific help.\n')
 }
 
