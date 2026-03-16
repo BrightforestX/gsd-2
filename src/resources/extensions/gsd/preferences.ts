@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "
 import { homedir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import { getAgentDir } from "@gsd/pi-coding-agent";
+import { parse as parseYaml } from "yaml";
 import type { GitPreferences } from "./git-service.js";
 import type { PostUnitHookConfig, PreDispatchHookConfig, BudgetEnforcementMode, NotificationPreferences, TokenProfile, InlineLevel, PhaseSkipPreferences } from "./types.js";
 import type { DynamicRoutingConfig } from "./model-router.js";
@@ -17,9 +18,40 @@ const GLOBAL_PREFERENCES_PATH_UPPERCASE = join(homedir(), ".gsd", "PREFERENCES.m
 const PROJECT_PREFERENCES_PATH_UPPERCASE = join(process.cwd(), ".gsd", "PREFERENCES.md");
 const SKILL_ACTIONS = new Set(["use", "prefer", "avoid"]);
 
+// ─── Workflow Modes ──────────────────────────────────────────────────────────
+
+export type WorkflowMode = "solo" | "team";
+
+/** Default preference values for each workflow mode. */
+const MODE_DEFAULTS: Record<WorkflowMode, Partial<GSDPreferences>> = {
+  solo: {
+    git: {
+      auto_push: true,
+      push_branches: false,
+      pre_merge_check: false,
+      merge_strategy: "squash",
+      isolation: "worktree",
+      commit_docs: true,
+    },
+    unique_milestone_ids: false,
+  },
+  team: {
+    git: {
+      auto_push: false,
+      push_branches: true,
+      pre_merge_check: true,
+      merge_strategy: "squash",
+      isolation: "worktree",
+      commit_docs: true,
+    },
+    unique_milestone_ids: true,
+  },
+};
+
 /** All recognized top-level keys in GSDPreferences. Used to detect typos / stale config. */
 const KNOWN_PREFERENCE_KEYS = new Set<string>([
   "version",
+  "mode",
   "always_use_skills",
   "prefer_skills",
   "avoid_skills",
@@ -27,6 +59,7 @@ const KNOWN_PREFERENCE_KEYS = new Set<string>([
   "custom_instructions",
   "models",
   "skill_discovery",
+  "skill_staleness_days",
   "auto_supervisor",
   "uat_dispatch",
   "unique_milestone_ids",
@@ -106,7 +139,7 @@ export interface AutoSupervisorConfig {
 }
 
 export interface RemoteQuestionsConfig {
-  channel: "slack" | "discord";
+  channel: "slack" | "discord" | "telegram";
   channel_id: string | number;
   timeout_minutes?: number;        // clamped to 1-30
   poll_interval_seconds?: number;  // clamped to 2-30
@@ -114,6 +147,7 @@ export interface RemoteQuestionsConfig {
 
 export interface GSDPreferences {
   version?: number;
+  mode?: WorkflowMode;
   always_use_skills?: string[];
   prefer_skills?: string[];
   avoid_skills?: string[];
@@ -121,6 +155,7 @@ export interface GSDPreferences {
   custom_instructions?: string[];
   models?: GSDModelConfig | GSDModelConfigV2;
   skill_discovery?: SkillDiscoveryMode;
+  skill_staleness_days?: number;  // Skills unused for N days get deprioritized (#599). 0 = disabled. Default: 60.
   auto_supervisor?: AutoSupervisorConfig;
   uat_dispatch?: boolean;
   unique_milestone_ids?: boolean;
@@ -169,25 +204,49 @@ export function loadProjectGSDPreferences(): LoadedGSDPreferences | null {
     ?? loadPreferencesFile(PROJECT_PREFERENCES_PATH_UPPERCASE, "project");
 }
 
+/**
+ * Apply mode defaults as the lowest-priority layer.
+ * Mode defaults fill in undefined fields; any explicit user value wins.
+ */
+export function applyModeDefaults(mode: WorkflowMode, prefs: GSDPreferences): GSDPreferences {
+  const defaults = MODE_DEFAULTS[mode];
+  if (!defaults) return prefs;
+  return mergePreferences(defaults, prefs);
+}
+
 export function loadEffectiveGSDPreferences(): LoadedGSDPreferences | null {
   const globalPreferences = loadGlobalGSDPreferences();
   const projectPreferences = loadProjectGSDPreferences();
 
   if (!globalPreferences && !projectPreferences) return null;
-  if (!globalPreferences) return projectPreferences;
-  if (!projectPreferences) return globalPreferences;
 
-  const mergedWarnings = [
-    ...(globalPreferences.warnings ?? []),
-    ...(projectPreferences.warnings ?? []),
-  ];
+  let result: LoadedGSDPreferences;
+  if (!globalPreferences) {
+    result = projectPreferences!;
+  } else if (!projectPreferences) {
+    result = globalPreferences;
+  } else {
+    const mergedWarnings = [
+      ...(globalPreferences.warnings ?? []),
+      ...(projectPreferences.warnings ?? []),
+    ];
+    result = {
+      path: projectPreferences.path,
+      scope: "project",
+      preferences: mergePreferences(globalPreferences.preferences, projectPreferences.preferences),
+      ...(mergedWarnings.length > 0 ? { warnings: mergedWarnings } : {}),
+    };
+  }
 
-  return {
-    path: projectPreferences.path,
-    scope: "project",
-    preferences: mergePreferences(globalPreferences.preferences, projectPreferences.preferences),
-    ...(mergedWarnings.length > 0 ? { warnings: mergedWarnings } : {}),
-  };
+  // Apply mode defaults as the lowest-priority layer
+  if (result.preferences.mode) {
+    result = {
+      ...result,
+      preferences: applyModeDefaults(result.preferences.mode, result.preferences),
+    };
+  }
+
+  return result;
 }
 
 // ─── Skill Reference Resolution ───────────────────────────────────────────────
@@ -431,142 +490,16 @@ export function parsePreferencesMarkdown(content: string): GSDPreferences | null
 }
 
 function parseFrontmatterBlock(frontmatter: string): GSDPreferences {
-  const root: Record<string, unknown> = {};
-  const stack: Array<{ indent: number; value: Record<string, unknown> }> = [{ indent: -1, value: root }];
-
-  const lines = frontmatter.split(/\r?\n/);
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (!line.trim()) continue;
-
-    const indent = line.match(/^\s*/)?.[0].length ?? 0;
-    const trimmed = line.trim();
-
-    // Skip comment lines (standalone YAML comments)
-    if (trimmed.startsWith("#")) continue;
-
-    while (stack.length > 1 && indent <= stack[stack.length - 1].indent) {
-      stack.pop();
+  try {
+    const parsed = parseYaml(frontmatter);
+    if (typeof parsed !== 'object' || parsed === null) {
+      return {} as GSDPreferences;
     }
-
-    const current = stack[stack.length - 1].value;
-    const keyMatch = trimmed.match(/^([A-Za-z0-9_]+):(.*)$/);
-    if (!keyMatch) continue;
-
-    const [, key, remainder] = keyMatch;
-    // Strip inline comments from the value portion
-    const valuePart = remainder.replace(/\s+#.*$/, "").trim();
-
-    if (valuePart === "") {
-      const nextLine = lines[i + 1] ?? "";
-      const nextTrimmed = nextLine.trim();
-      if (nextTrimmed.startsWith("- ")) {
-        const items: unknown[] = [];
-        let j = i + 1;
-        while (j < lines.length) {
-          const candidate = lines[j];
-          const candidateIndent = candidate.match(/^\s*/)?.[0].length ?? 0;
-          const candidateTrimmed = candidate.trim();
-          if (!candidateTrimmed) {
-            j++;
-            continue;
-          }
-          if (candidateIndent <= indent || !candidateTrimmed.startsWith("- ")) break;
-
-          const itemText = candidateTrimmed.slice(2).trim();
-          const nextCandidate = lines[j + 1] ?? "";
-          const nextCandidateIndent = nextCandidate.match(/^\s*/)?.[0].length ?? 0;
-          const nextCandidateTrimmed = nextCandidate.trim();
-
-          // Treat an array item as a structured object only when:
-          //   a) It looks like a YAML key-value pair (key starts with [A-Za-z0-9_]+:), OR
-          //   b) The next line is indented deeper (nested block under this item).
-          // Bare colons (e.g. "qwen/qwen3-coder:free") are NOT key-value pairs.
-          const looksLikeKeyValue = /^[A-Za-z0-9_]+:/.test(itemText);
-          if (looksLikeKeyValue || (nextCandidateTrimmed && nextCandidateIndent > candidateIndent)) {
-            const obj: Record<string, unknown> = {};
-            const firstMatch = itemText.match(/^([A-Za-z0-9_]+):(.*)$/);
-            if (firstMatch) {
-              obj[firstMatch[1]] = parseScalar(firstMatch[2].trim());
-            }
-            j++;
-            while (j < lines.length) {
-              const nested = lines[j];
-              const nestedIndent = nested.match(/^\s*/)?.[0].length ?? 0;
-              const nestedTrimmed = nested.trim();
-              if (!nestedTrimmed) {
-                j++;
-                continue;
-              }
-              if (nestedIndent <= candidateIndent) break;
-              const nestedMatch = nestedTrimmed.match(/^([A-Za-z0-9_]+):(.*)$/);
-              if (nestedMatch) {
-                const nestedValue = nestedMatch[2].trim();
-                if (nestedValue === "") {
-                  const nestedItems: string[] = [];
-                  j++;
-                  while (j < lines.length) {
-                    const nestedArrayLine = lines[j];
-                    const nestedArrayIndent = nestedArrayLine.match(/^\s*/)?.[0].length ?? 0;
-                    const nestedArrayTrimmed = nestedArrayLine.trim();
-                    if (!nestedArrayTrimmed) {
-                      j++;
-                      continue;
-                    }
-                    if (nestedArrayIndent <= nestedIndent || !nestedArrayTrimmed.startsWith("- ")) break;
-                    nestedItems.push(String(parseScalar(nestedArrayTrimmed.slice(2).trim())));
-                    j++;
-                  }
-                  obj[nestedMatch[1]] = nestedItems;
-                  continue;
-                }
-                obj[nestedMatch[1]] = parseScalar(nestedValue);
-              }
-              j++;
-            }
-            items.push(obj);
-            continue;
-          }
-
-          items.push(parseScalar(itemText));
-          j++;
-        }
-        current[key] = items;
-        i = j - 1;
-      } else {
-        const obj: Record<string, unknown> = {};
-        current[key] = obj;
-        stack.push({ indent, value: obj });
-      }
-      continue;
-    }
-
-    current[key] = parseScalar(valuePart);
+    return parsed as GSDPreferences;
+  } catch (e) {
+    console.error("[parseFrontmatterBlock] YAML parse error:", e);
+    return {} as GSDPreferences;
   }
-
-  return root as GSDPreferences;
-}
-
-function parseScalar(value: string): unknown {
-  // Strip inline YAML comments: " # comment" (# preceded by whitespace).
-  // Quoted strings are returned as-is (the comment is inside quotes).
-  const quoteMatch = value.match(/^(['"])(.*)(\1)$/);
-  if (quoteMatch) return quoteMatch[2];
-
-  const stripped = value.replace(/\s+#.*$/, "");
-  if (stripped === "true") return true;
-  if (stripped === "false") return false;
-  // Recognize empty array/object literals (with or without surrounding quotes)
-  const unquoted = stripped.replace(/^['\"]|['\"]$/g, "");
-  if (unquoted === "[]") return [];
-  if (unquoted === "{}") return {};
-  if (/^-?\d+$/.test(stripped)) {
-    const n = Number(stripped);
-    // Keep large integers (e.g. Discord channel IDs) as strings to avoid precision loss
-    if (Number.isSafeInteger(n)) return n;
-    return stripped;
-  }
-  return unquoted;
 }
 
 /**
@@ -576,6 +509,15 @@ function parseScalar(value: string): unknown {
 export function resolveSkillDiscoveryMode(): SkillDiscoveryMode {
   const prefs = loadEffectiveGSDPreferences();
   return prefs?.preferences.skill_discovery ?? "suggest";
+}
+
+/**
+ * Resolve the skill staleness threshold in days.
+ * Returns 0 if disabled, default 60 if not configured.
+ */
+export function resolveSkillStalenessDays(): number {
+  const prefs = loadEffectiveGSDPreferences();
+  return prefs?.preferences.skill_staleness_days ?? 60;
 }
 
 /**
@@ -776,6 +718,7 @@ export function resolveInlineLevel(): InlineLevel {
 function mergePreferences(base: GSDPreferences, override: GSDPreferences): GSDPreferences {
   return {
     version: override.version ?? base.version,
+    mode: override.mode ?? base.mode,
     always_use_skills: mergeStringLists(base.always_use_skills, override.always_use_skills),
     prefer_skills: mergeStringLists(base.prefer_skills, override.prefer_skills),
     avoid_skills: mergeStringLists(base.avoid_skills, override.avoid_skills),
@@ -783,6 +726,7 @@ function mergePreferences(base: GSDPreferences, override: GSDPreferences): GSDPr
     custom_instructions: mergeStringLists(base.custom_instructions, override.custom_instructions),
     models: { ...(base.models ?? {}), ...(override.models ?? {}) },
     skill_discovery: override.skill_discovery ?? base.skill_discovery,
+    skill_staleness_days: override.skill_staleness_days ?? base.skill_staleness_days,
     auto_supervisor: { ...(base.auto_supervisor ?? {}), ...(override.auto_supervisor ?? {}) },
     uat_dispatch: override.uat_dispatch ?? base.uat_dispatch,
     unique_milestone_ids: override.unique_milestone_ids ?? base.unique_milestone_ids,
@@ -834,12 +778,31 @@ export function validatePreferences(preferences: GSDPreferences): {
     }
   }
 
+  // ─── Workflow Mode ──────────────────────────────────────────────────
+  if (preferences.mode !== undefined) {
+    const validModes = new Set<string>(["solo", "team"]);
+    if (typeof preferences.mode === "string" && validModes.has(preferences.mode)) {
+      validated.mode = preferences.mode as WorkflowMode;
+    } else {
+      errors.push(`invalid mode "${preferences.mode}" — must be one of: solo, team`);
+    }
+  }
+
   const validDiscoveryModes = new Set(["auto", "suggest", "off"]);
   if (preferences.skill_discovery) {
     if (validDiscoveryModes.has(preferences.skill_discovery)) {
       validated.skill_discovery = preferences.skill_discovery;
     } else {
       errors.push(`invalid skill_discovery value: ${preferences.skill_discovery}`);
+    }
+  }
+
+  if (preferences.skill_staleness_days !== undefined) {
+    const days = Number(preferences.skill_staleness_days);
+    if (Number.isFinite(days) && days >= 0) {
+      validated.skill_staleness_days = Math.floor(days);
+    } else {
+      errors.push(`invalid skill_staleness_days: must be a non-negative number`);
     }
   }
 
@@ -1239,6 +1202,13 @@ export function validatePreferences(preferences: GSDPreferences): {
     if (g.commit_docs !== undefined) {
       if (typeof g.commit_docs === "boolean") git.commit_docs = g.commit_docs;
       else errors.push("git.commit_docs must be a boolean");
+    }
+    if (g.worktree_post_create !== undefined) {
+      if (typeof g.worktree_post_create === "string" && g.worktree_post_create.trim()) {
+        git.worktree_post_create = g.worktree_post_create.trim();
+      } else {
+        errors.push("git.worktree_post_create must be a non-empty string (path to script)");
+      }
     }
     // Deprecated: merge_to_main is ignored (branchless architecture).
     if (g.merge_to_main !== undefined) {

@@ -17,6 +17,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionContext } from "@gsd/pi-coding-agent";
 import { gsdRoot } from "./paths.js";
+import { getAndClearSkills } from "./skill-telemetry.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,8 +44,11 @@ export interface UnitMetrics {
   contextWindowTokens?: number;
   truncationSections?: number;
   continueHereFired?: boolean;
+  promptCharCount?: number;
+  baselineCharCount?: number;
   tier?: string;           // complexity tier (light/standard/heavy) if dynamic routing active
   modelDowngraded?: boolean; // true if dynamic routing used a cheaper model
+  skills?: string[];       // skill names available/loaded during this unit (#599)
 }
 
 /** Budget state passed to snapshotUnitMetrics for persistence in the metrics ledger. */
@@ -117,7 +121,7 @@ export function snapshotUnitMetrics(
   unitId: string,
   startedAt: number,
   model: string,
-  opts?: { tier?: string; modelDowngraded?: boolean; contextWindowTokens?: number; truncationSections?: number; continueHereFired?: boolean },
+  opts?: { tier?: string; modelDowngraded?: boolean; contextWindowTokens?: number; truncationSections?: number; continueHereFired?: boolean; promptCharCount?: number; baselineCharCount?: number },
 ): UnitMetrics | null {
   if (!ledger) return null;
 
@@ -175,7 +179,15 @@ export function snapshotUnitMetrics(
     ...(opts?.contextWindowTokens !== undefined ? { contextWindowTokens: opts.contextWindowTokens } : {}),
     ...(opts?.truncationSections !== undefined ? { truncationSections: opts.truncationSections } : {}),
     ...(opts?.continueHereFired !== undefined ? { continueHereFired: opts.continueHereFired } : {}),
+    ...(opts?.promptCharCount != null ? { promptCharCount: opts.promptCharCount } : {}),
+    ...(opts?.baselineCharCount != null ? { baselineCharCount: opts.baselineCharCount } : {}),
   };
+
+  // Auto-capture skill telemetry (#599)
+  const skills = getAndClearSkills();
+  if (skills.length > 0) {
+    unit.skills = skills;
+  }
 
   ledger.units.push(unit);
   saveLedger(basePath, ledger);

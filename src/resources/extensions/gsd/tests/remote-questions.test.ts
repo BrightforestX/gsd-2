@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseSlackReply, parseDiscordResponse, formatForDiscord } from "../../remote-questions/format.ts";
+import { parseSlackReply, parseDiscordResponse, formatForDiscord, formatForSlack, parseSlackReactionResponse, formatForTelegram, parseTelegramResponse } from "../../remote-questions/format.ts";
 import { resolveRemoteConfig, isValidChannelId } from "../../remote-questions/config.ts";
 import { sanitizeError } from "../../remote-questions/manager.ts";
 
@@ -92,6 +92,21 @@ test("parseDiscordResponse rejects multi-question reaction parsing", () => {
 
   assert.match(String(result.answers.first.user_note), /single-question prompts/i);
   assert.match(String(result.answers.second.user_note), /single-question prompts/i);
+});
+
+test("parseSlackReactionResponse handles single-question reactions", () => {
+  const result = parseSlackReactionResponse(["two"], [{
+    id: "choice",
+    header: "Choice",
+    question: "Pick one",
+    allowMultiple: false,
+    options: [
+      { label: "Alpha", description: "A" },
+      { label: "Beta", description: "B" },
+    ],
+  }]);
+
+  assert.deepEqual(result, { answers: { choice: { answers: ["Beta"] } } });
 });
 
 test("parseSlackReply truncates user_note longer than 500 chars", () => {
@@ -187,6 +202,65 @@ test("formatForDiscord includes context source in footer when present", () => {
   const { embeds } = formatForDiscord(prompt);
   assert.equal(embeds.length, 1);
   assert.ok(embeds[0].footer?.text.includes("auto-mode-dispatch"), "footer should include context source");
+});
+
+test("formatForSlack includes context source when present", () => {
+  const blocks = formatForSlack({
+    id: "slack-1",
+    channel: "slack",
+    createdAt: Date.now(),
+    timeoutAt: Date.now() + 60000,
+    pollIntervalMs: 5000,
+    context: { source: "ask_user_questions" },
+    questions: [{
+      id: "q1",
+      header: "Confirm",
+      question: "Proceed?",
+      options: [
+        { label: "Yes", description: "Continue" },
+        { label: "No", description: "Stop" },
+      ],
+      allowMultiple: false,
+    }],
+  });
+
+  const sourceBlock = blocks.find((block) => block.type === "context" && block.elements?.some((el) => el.text.includes("Source:")));
+  assert.ok(sourceBlock, "Slack blocks should include a context source block");
+});
+
+test("formatForSlack multi-question prompts explain semicolon and newline reply format", () => {
+  const blocks = formatForSlack({
+    id: "slack-2",
+    channel: "slack",
+    createdAt: Date.now(),
+    timeoutAt: Date.now() + 60000,
+    pollIntervalMs: 5000,
+    questions: [
+      {
+        id: "q1",
+        header: "First",
+        question: "Pick one",
+        options: [
+          { label: "Alpha", description: "A" },
+          { label: "Beta", description: "B" },
+        ],
+        allowMultiple: false,
+      },
+      {
+        id: "q2",
+        header: "Second",
+        question: "Explain",
+        options: [
+          { label: "Gamma", description: "G" },
+          { label: "Delta", description: "D" },
+        ],
+        allowMultiple: false,
+      },
+    ],
+  });
+
+  const instructionBlock = blocks.find((block) => block.type === "context" && block.elements?.some((el) => el.text.includes("one line per question")));
+  assert.ok(instructionBlock, "Slack multi-question prompts should explain one-line or semicolon reply format");
 });
 
 test("formatForDiscord omits source from footer when context is absent", () => {
@@ -356,6 +430,27 @@ test("DiscordAdapter source-level: acknowledgeAnswer method exists", () => {
   assert.ok(adapterSrc.includes("✅"), "should use checkmark emoji for acknowledgement");
 });
 
+test("SlackAdapter source-level: supports reaction polling and acknowledgement", () => {
+  const adapterSrc = readFileSync(
+    join(__dirname, "..", "..", "remote-questions", "slack-adapter.ts"),
+    "utf-8",
+  );
+  assert.ok(adapterSrc.includes("reactions.get"), "should poll Slack reactions");
+  assert.ok(adapterSrc.includes("reactions.add"), "should add Slack reactions");
+  assert.ok(adapterSrc.includes("async acknowledgeAnswer"), "should acknowledge Slack answers");
+  assert.ok(adapterSrc.includes("white_check_mark"), "should use a checkmark acknowledgement reaction");
+});
+
+test("Slack setup source-level: offers channel picker with manual fallback", () => {
+  const commandSrc = readFileSync(
+    join(__dirname, "..", "..", "remote-questions", "remote-command.ts"),
+    "utf-8",
+  );
+  assert.ok(commandSrc.includes("users.conversations"), "Slack setup should query Slack channels");
+  assert.ok(commandSrc.includes("Select a Slack channel"), "Slack setup should present a channel picker");
+  assert.ok(commandSrc.includes("Enter channel ID manually"), "Slack setup should preserve manual fallback");
+});
+
 test("DiscordAdapter source-level: resolves guild ID for message URLs", () => {
   const adapterSrc = readFileSync(
     join(__dirname, "..", "..", "remote-questions", "discord-adapter.ts"),
@@ -367,6 +462,172 @@ test("DiscordAdapter source-level: resolves guild ID for message URLs", () => {
     adapterSrc.includes("discord.com/channels/"),
     "should construct message URL with guild/channel/message format",
   );
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Telegram Tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+test("formatForTelegram single-question produces inline keyboard", () => {
+  const prompt = {
+    id: "tg-1",
+    channel: "telegram" as const,
+    createdAt: Date.now(),
+    timeoutAt: Date.now() + 60000,
+    pollIntervalMs: 5000,
+    questions: [{
+      id: "q1",
+      header: "Confirm",
+      question: "Proceed?",
+      options: [
+        { label: "Yes", description: "Continue" },
+        { label: "No", description: "Stop" },
+      ],
+      allowMultiple: false,
+    }],
+  };
+
+  const msg = formatForTelegram(prompt);
+  assert.equal(msg.parse_mode, "HTML");
+  assert.ok(msg.text.includes("<b>GSD needs your input</b>"));
+  assert.ok(msg.text.includes("<b>Confirm</b>"));
+  assert.ok(msg.reply_markup, "single-question should have inline keyboard");
+  assert.equal(msg.reply_markup!.inline_keyboard.length, 2, "should have 2 button rows");
+  assert.equal(msg.reply_markup!.inline_keyboard[0][0].callback_data, "tg-1:0");
+  assert.equal(msg.reply_markup!.inline_keyboard[1][0].callback_data, "tg-1:1");
+});
+
+test("formatForTelegram multi-question omits inline keyboard", () => {
+  const prompt = {
+    id: "tg-2",
+    channel: "telegram" as const,
+    createdAt: Date.now(),
+    timeoutAt: Date.now() + 60000,
+    pollIntervalMs: 5000,
+    questions: [
+      {
+        id: "q1",
+        header: "First",
+        question: "Pick",
+        options: [{ label: "A", description: "a" }],
+        allowMultiple: false,
+      },
+      {
+        id: "q2",
+        header: "Second",
+        question: "Pick",
+        options: [{ label: "B", description: "b" }],
+        allowMultiple: false,
+      },
+    ],
+  };
+
+  const msg = formatForTelegram(prompt);
+  assert.equal(msg.reply_markup, undefined, "multi-question should not have inline keyboard");
+  assert.ok(msg.text.includes("1/2"), "should show question position");
+  assert.ok(msg.text.includes("2/2"), "should show question position");
+});
+
+test("formatForTelegram escapes HTML in user content", () => {
+  const prompt = {
+    id: "tg-3",
+    channel: "telegram" as const,
+    createdAt: Date.now(),
+    timeoutAt: Date.now() + 60000,
+    pollIntervalMs: 5000,
+    questions: [{
+      id: "q1",
+      header: "Test <script>",
+      question: "Is 5 > 3 & 2 < 4?",
+      options: [{ label: "<b>Yes</b>", description: "it's true" }],
+      allowMultiple: false,
+    }],
+  };
+
+  const msg = formatForTelegram(prompt);
+  assert.ok(msg.text.includes("&lt;script&gt;"), "should escape < > in header");
+  assert.ok(msg.text.includes("5 &gt; 3 &amp; 2 &lt; 4"), "should escape in question");
+  assert.ok(msg.text.includes("&lt;b&gt;Yes&lt;/b&gt;"), "should escape in option label");
+});
+
+test("parseTelegramResponse handles callback_data button press", () => {
+  const questions = [{
+    id: "choice",
+    header: "Pick",
+    question: "Choose",
+    allowMultiple: false,
+    options: [
+      { label: "Alpha", description: "A" },
+      { label: "Beta", description: "B" },
+    ],
+  }];
+
+  const result = parseTelegramResponse("prompt-123:1", null, questions, "prompt-123");
+  assert.deepEqual(result, { answers: { choice: { answers: ["Beta"] } } });
+});
+
+test("parseTelegramResponse handles text reply delegation", () => {
+  const questions = [{
+    id: "choice",
+    header: "Pick",
+    question: "Choose",
+    allowMultiple: false,
+    options: [
+      { label: "Alpha", description: "A" },
+      { label: "Beta", description: "B" },
+    ],
+  }];
+
+  const result = parseTelegramResponse(null, "1", questions, "prompt-123");
+  assert.deepEqual(result, { answers: { choice: { answers: ["Alpha"] } } });
+});
+
+test("parseTelegramResponse handles multi-question semicolons", () => {
+  const questions = [
+    {
+      id: "first",
+      header: "First",
+      question: "Pick",
+      allowMultiple: false,
+      options: [
+        { label: "Alpha", description: "A" },
+        { label: "Beta", description: "B" },
+      ],
+    },
+    {
+      id: "second",
+      header: "Second",
+      question: "Pick",
+      allowMultiple: false,
+      options: [
+        { label: "Gamma", description: "G" },
+        { label: "Delta", description: "D" },
+      ],
+    },
+  ];
+
+  const result = parseTelegramResponse(null, "2;1", questions, "prompt-123");
+  assert.deepEqual(result.answers.first.answers, ["Beta"]);
+  assert.deepEqual(result.answers.second.answers, ["Gamma"]);
+});
+
+test("isValidChannelId validates Telegram chat IDs", () => {
+  // Valid positive ID
+  assert.equal(isValidChannelId("telegram", "12345"), true);
+  // Valid negative group ID
+  assert.equal(isValidChannelId("telegram", "-1001234567890"), true);
+  // Too short
+  assert.equal(isValidChannelId("telegram", "1234"), false);
+  // Non-numeric
+  assert.equal(isValidChannelId("telegram", "abc12345"), false);
+  // URL injection
+  assert.equal(isValidChannelId("telegram", "https://evil.com"), false);
+});
+
+test("sanitizeError strips Telegram bot token patterns", () => {
+  const fakeToken = "1234567890:ABCdefGHIjklMNOpqrSTUvwxyz12345678";
+  const result = sanitizeError(`Token: ${fakeToken}`);
+  assert.ok(!result.includes("1234567890:ABC"), "should strip Telegram bot token");
 });
 
 test("DiscordAdapter source-level: sendPrompt sets threadUrl in ref", () => {
