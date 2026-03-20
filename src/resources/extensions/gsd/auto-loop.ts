@@ -1545,7 +1545,8 @@ export async function autoLoop(
           }
 
           if (verifyOutcome === "retry") {
-            const prevAttempt = s.pendingVerificationRetry?.attempt ?? 0;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TS narrows to never after earlier null assignment in same loop body
+            const prevAttempt = (s as any).pendingVerificationRetry?.attempt ?? 0;
             s.pendingVerificationRetry = {
               unitId: s.currentUnit.id,
               attempt: prevAttempt + 1,
