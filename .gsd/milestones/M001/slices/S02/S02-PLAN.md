@@ -32,7 +32,7 @@
 
 ## Tasks
 
-- [ ] **T01: Implement DevWorkflowEngine, DevExecutionPolicy, resolver wiring, and auto.ts exports** `est:25m`
+- [x] **T01: Implement DevWorkflowEngine, DevExecutionPolicy, resolver wiring, and auto.ts exports** `est:25m`
   - Why: Creates the four source files that make the dev engine available through the resolver, proving the S01 interfaces can be implemented and the existing code delegates correctly
   - Files: `src/resources/extensions/gsd/dev-workflow-engine.ts`, `src/resources/extensions/gsd/dev-execution-policy.ts`, `src/resources/extensions/gsd/engine-resolver.ts`, `src/resources/extensions/gsd/auto.ts`
   - Do: (1) Create `dev-workflow-engine.ts` implementing `WorkflowEngine` — `engineId: "dev"`, `deriveState()` delegates to `state.ts::deriveState()` and maps `GSDState` to `EngineState`, `resolveDispatch()` loads preferences and builds `DispatchContext` then delegates to `auto-dispatch.ts::resolveDispatch()` with `bridgeDispatchAction()` mapping the result, `reconcile()` returns `{ outcome: "continue" }` for non-complete state, `getDisplayMetadata()` maps GSD state to `DisplayMetadata`. (2) Create `dev-execution-policy.ts` implementing `ExecutionPolicy` — all stubs: `prepareWorkspace` is no-op, `selectModel` returns `null`, `verify` returns `"continue"`, `recover` returns `{ outcome: "retry" }`, `closeout` returns `{ committed: false, artifacts: [] }`. (3) Update `engine-resolver.ts` — import dev classes, check `GSD_ENGINE_BYPASS` first (throw if set), route `null`/`"dev"` to dev engine pair, throw for unknown IDs. (4) Add two one-line exports to `auto.ts`: `setActiveEngineId(id)` and `getActiveEngineId()` using `s.activeEngineId`.
@@ -54,3 +54,12 @@
 - `src/resources/extensions/gsd/auto.ts` (modify — add 2 exports)
 - `src/resources/extensions/gsd/tests/dev-engine-wrapper.test.ts` (new)
 - `src/resources/extensions/gsd/tests/engine-interfaces-contract.test.ts` (modify — update resolver assertions)
+
+## Observability / Diagnostics
+
+- **Engine resolution**: `resolveEngine()` throws with descriptive messages for bypass (`GSD_ENGINE_BYPASS=1`) and unknown engine IDs — error messages include the attempted engine ID and the bypass flag state.
+- **Engine identity**: `engine.engineId` returns `"dev"` — inspectable at runtime via `resolveEngine({activeEngineId: null}).engine.engineId`.
+- **Session state**: `getActiveEngineId()` / `setActiveEngineId()` expose the current engine ID on the session singleton; `AutoSession.toJSON()` already includes `activeEngineId` for diagnostic snapshots.
+- **Display metadata**: `DevWorkflowEngine.getDisplayMetadata()` returns `engineLabel: "GSD Dev"` and a `progressSummary` string showing milestone/slice/task IDs — consumable by future dashboard surfaces.
+- **Failure visibility**: If `deriveState()` or `resolveDispatch()` throws, the error propagates unmodified through the engine wrapper — no swallowed exceptions.
+- **Redaction**: No secrets or user data flow through these surfaces; engine ID and phase metadata are safe to log.

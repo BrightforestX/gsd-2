@@ -108,3 +108,10 @@ The `auto.ts` exports are two one-line functions: `setActiveEngineId(id)` and `g
 - `src/resources/extensions/gsd/dev-execution-policy.ts` — new file: `DevExecutionPolicy` class with stub methods
 - `src/resources/extensions/gsd/engine-resolver.ts` — modified: real routing replacing S01 stub
 - `src/resources/extensions/gsd/auto.ts` — modified: two new function exports
+
+## Observability Impact
+
+- **New signal**: `resolveEngine()` now returns a live engine pair instead of throwing — downstream code can inspect `engine.engineId` to confirm which engine is active.
+- **Inspection surface**: `getActiveEngineId()` export on `auto.ts` — returns the session's current engine ID (default `null`). `AutoSession.toJSON()` already serializes `activeEngineId`.
+- **Error shapes**: Resolver throws with one of three distinct messages: bypass (`"Engine layer bypassed"`), unknown ID (`"Unknown engine ID: \"…\""`), or propagated errors from delegate functions. All include enough context to diagnose without a debugger.
+- **Failure visibility**: `DevWorkflowEngine.deriveState()` and `resolveDispatch()` do not catch errors — failures in `state.ts::deriveState()` or `auto-dispatch.ts::resolveDispatch()` propagate with their original stack traces.

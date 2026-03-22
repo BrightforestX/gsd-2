@@ -358,6 +358,14 @@ export function isAutoPaused(): boolean {
   return s.paused;
 }
 
+export function setActiveEngineId(id: string | null): void {
+  s.activeEngineId = id;
+}
+
+export function getActiveEngineId(): string | null {
+  return s.activeEngineId;
+}
+
 /**
  * Return the model captured at auto-mode start for this session.
  * Used by error-recovery to fall back to the session's own model
