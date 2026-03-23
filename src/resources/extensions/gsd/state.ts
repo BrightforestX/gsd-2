@@ -14,6 +14,9 @@ import type {
 import {
   parseRoadmap,
   parsePlan,
+} from './parsers-legacy.js';
+
+import {
   parseSummary,
   loadFile,
   parseRequirementCounts,

@@ -21,7 +21,7 @@ import {
   renderPlanFromDb,
 } from '../markdown-renderer.ts';
 import { parseRoadmapSlices } from '../roadmap-slices.ts';
-import { parsePlan } from '../files.ts';
+import { parsePlan } from '../parsers-legacy.ts';
 import { createTestContext } from './test-helpers.ts';
 
 const { assertEq, assertTrue, report } = createTestContext();

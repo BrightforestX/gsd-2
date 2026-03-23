@@ -13,7 +13,8 @@ import {
   selfHealRuntimeRecords,
   hasImplementationArtifacts,
 } from "../auto-recovery.ts";
-import { parseRoadmap, parsePlan, parseTaskPlanFile, clearParseCache } from "../files.ts";
+import { parseRoadmap, parsePlan } from "../parsers-legacy.ts";
+import { parseTaskPlanFile, clearParseCache } from "../files.ts";
 import { invalidateAllCaches } from "../cache.ts";
 import { deriveState, invalidateStateCache } from "../state.ts";
 import {

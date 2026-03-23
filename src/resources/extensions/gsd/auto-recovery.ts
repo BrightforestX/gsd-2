@@ -379,8 +379,8 @@ export function verifyExpectedArtifact(
           const planContent = readFileSync(absPath, "utf-8");
           const _require = createRequire(import.meta.url);
           let parsePlan: Function;
-          try { parsePlan = _require("./files.ts").parsePlan; }
-          catch { parsePlan = _require("./files.js").parsePlan; }
+          try { parsePlan = _require("./parsers-legacy.ts").parsePlan; }
+          catch { parsePlan = _require("./parsers-legacy.js").parsePlan; }
           const plan = parsePlan(planContent);
           if (plan.tasks.length > 0) taskIds = plan.tasks.map((t: { id: string }) => t.id);
         }
@@ -425,8 +425,8 @@ export function verifyExpectedArtifact(
             const roadmapContent = readFileSync(roadmapFile, "utf-8");
             const _require = createRequire(import.meta.url);
             let parseRoadmap: Function;
-            try { parseRoadmap = _require("./files.ts").parseRoadmap; }
-            catch { parseRoadmap = _require("./files.js").parseRoadmap; }
+            try { parseRoadmap = _require("./parsers-legacy.ts").parseRoadmap; }
+            catch { parseRoadmap = _require("./parsers-legacy.js").parseRoadmap; }
             const roadmap = parseRoadmap(roadmapContent);
             const slice = roadmap.slices.find((s) => s.id === sid);
             if (slice && !slice.done) return false;

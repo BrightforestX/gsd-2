@@ -781,10 +781,10 @@ export function detectStaleRenders(basePath: string): StaleEntry[] {
   const _require = createRequire(import.meta.url);
   let parseRoadmap: Function, parsePlan: Function;
   try {
-    const m = _require("./files.ts");
+    const m = _require("./parsers-legacy.ts");
     parseRoadmap = m.parseRoadmap; parsePlan = m.parsePlan;
   } catch {
-    const m = _require("./files.js");
+    const m = _require("./parsers-legacy.js");
     parseRoadmap = m.parseRoadmap; parsePlan = m.parsePlan;
   }
 
