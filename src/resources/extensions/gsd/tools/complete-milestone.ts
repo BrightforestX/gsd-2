@@ -36,6 +36,7 @@ export interface CompleteMilestoneParams {
   lessonsLearned: string[];
   followUps: string;
   deviations: string;
+  verificationPassed: boolean;
   /** Optional caller-provided identity for audit trail */
   actorName?: string;
   /** Optional caller-provided reason this action was triggered */
@@ -115,6 +116,11 @@ export async function handleCompleteMilestone(
   }
   if (!params.title || typeof params.title !== "string" || params.title.trim() === "") {
     return { error: "title is required and must be a non-empty string" };
+  }
+
+  // ── Verify that verification passed ─────────────────────────────────────
+  if (params.verificationPassed !== true) {
+    return { error: "verification did not pass — milestone completion blocked. verificationPassed must be explicitly set to true after all verification steps succeed" };
   }
 
   // ── Guards + DB writes inside a single transaction (prevents TOCTOU) ───
