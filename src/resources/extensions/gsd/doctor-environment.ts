@@ -14,6 +14,7 @@ import { execSync } from "node:child_process";
 import { join } from "node:path";
 
 import type { DoctorIssue, DoctorIssueCode } from "./doctor-types.js";
+import { detectWorktreePath } from "./worktree.js";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -37,27 +38,17 @@ const CMD_TIMEOUT = 5_000;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-/** Worktree sentinel — path segment that marks an auto-worktree directory. */
-const WORKTREE_PATH_SEGMENT = `${join(".gsd", "worktrees")}/`;
-
 /**
  * Resolve the project root when running inside a `.gsd/worktrees/<name>/`
  * auto-worktree. Returns `null` if not in a worktree.
  *
- * Detection order:
- *   1. `GSD_WORKTREE` env var (set by the worktree launcher)
- *   2. `.gsd/worktrees/` segment in basePath
+ * Delegates to the shared detectWorktreePath() which handles GSD_WORKTREE
+ * env var, both direct and symlink-resolved layouts, and the home directory
+ * safety guard.
  */
 function resolveWorktreeProjectRoot(basePath: string): string | null {
-  const envRoot = process.env.GSD_WORKTREE;
-  if (envRoot) return envRoot;
-
-  const normalised = basePath.replace(/\\/g, "/");
-  const idx = normalised.indexOf(WORKTREE_PATH_SEGMENT.replace(/\\/g, "/"));
-  if (idx === -1) return null;
-
-  // Everything before `.gsd/worktrees/` is the project root
-  return basePath.slice(0, idx);
+  const result = detectWorktreePath(basePath);
+  return result?.projectRoot ?? null;
 }
 
 function tryExec(cmd: string, cwd: string): string | null {

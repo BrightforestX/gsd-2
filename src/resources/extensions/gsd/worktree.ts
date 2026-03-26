@@ -66,7 +66,7 @@ export function captureIntegrationBranch(basePath: string, milestoneId: string):
   writeIntegrationBranch(basePath, milestoneId, current);
 }
 
-// ─── Pure Utility Functions (unchanged) ────────────────────────────────────
+// ─── Pure Utility Functions ────────────────────────────────────────────────
 
 /**
  * Find the worktrees segment in a path, supporting both direct
@@ -92,7 +92,76 @@ function findWorktreeSegment(normalizedPath: string): { gsdIdx: number; afterWor
 }
 
 /**
+ * Detect if basePath is inside a GSD worktree and resolve the project root.
+ * Checks GSD_WORKTREE env var first, then path-based detection for both
+ * direct (/.gsd/worktrees/) and symlink-resolved (/.gsd/projects/<hash>/worktrees/) layouts.
+ * Guards against resolving to user home directory.
+ *
+ * @returns Object with worktree `name` and `projectRoot`, or null if not in a worktree.
+ */
+export function detectWorktreePath(basePath: string): { name: string; projectRoot: string } | null {
+  // 1. Check GSD_WORKTREE env var (set by the worktree launcher).
+  //    It contains the project root when running inside a worktree.
+  const envRoot = process.env.GSD_WORKTREE;
+  if (envRoot) {
+    // Try to extract the worktree name from the path.
+    const normalizedPath = basePath.replaceAll("\\", "/");
+    const seg = findWorktreeSegment(normalizedPath);
+    if (seg) {
+      const afterMarker = normalizedPath.slice(seg.afterWorktrees);
+      const name = afterMarker.split("/")[0];
+      if (name) return { name, projectRoot: envRoot };
+    }
+    // Env var set but path doesn't contain worktree segment. The process is
+    // inside a worktree (the env var says so), but we can't extract a name
+    // from the path. Use the basename of basePath as a best-effort name.
+    const fallbackName = normalizedPath.split("/").filter(Boolean).pop();
+    return { name: fallbackName || "unknown", projectRoot: envRoot };
+  }
+
+  // 2. Normalize path (handle Windows backslashes)
+  const normalizedPath = basePath.replaceAll("\\", "/");
+
+  // 3-4. Check direct layout (/.gsd/worktrees/) and symlink layout
+  //      (/.gsd/projects/<hash>/worktrees/)
+  const seg = findWorktreeSegment(normalizedPath);
+  if (!seg) return null;
+
+  // 5. Extract worktree name from path
+  const afterMarker = normalizedPath.slice(seg.afterWorktrees);
+  const name = afterMarker.split("/")[0];
+  if (!name) return null;
+
+  // Candidate root via the string-slice heuristic
+  const sepChar = basePath.includes("\\") ? "\\" : "/";
+  const gsdMarker = `${sepChar}.gsd${sepChar}`;
+  const gsdIdx = basePath.indexOf(gsdMarker);
+  const candidate = gsdIdx !== -1
+    ? basePath.slice(0, gsdIdx)
+    : basePath.slice(0, seg.gsdIdx);
+
+  // 6. Home directory guard.
+  //    When .gsd is a symlink into ~/.gsd/projects/<hash>, the resolved path
+  //    contains /.gsd/ at the user-level boundary. Slicing there yields ~ — wrong.
+  const gsdHome = normalizePathForCompare(process.env.GSD_HOME || join(homedir(), ".gsd"));
+  const candidateGsdPath = normalizePathForCompare(join(candidate, ".gsd"));
+
+  if (candidateGsdPath === gsdHome || candidateGsdPath.startsWith(gsdHome + "/")) {
+    // The candidate is the home directory. Try to recover the real project root
+    // from the worktree's .git file.
+    const realRoot = resolveProjectRootFromGitFile(basePath);
+    if (realRoot) return { name, projectRoot: realRoot };
+    // Git file resolution failed — cannot determine project root safely.
+    return null;
+  }
+
+  // 7. Return result
+  return { name, projectRoot: candidate };
+}
+
+/**
  * Detect the active worktree name from the current working directory.
+ * Uses path-based detection only (does not check env vars).
  * Returns null if not inside a GSD worktree (.gsd/worktrees/<name>/).
  */
 export function detectWorktreeName(basePath: string): string | null {
@@ -112,51 +181,21 @@ export function detectWorktreeName(basePath: string): string | null {
  * When the worker was spawned with GSD_PROJECT_ROOT set, use that directly —
  * the coordinator already knows the real project root unambiguously.
  *
- * When `/.gsd/` in the resolved path is actually the user-level `~/.gsd/`
- * (common when `.gsd` is a symlink into `~/.gsd/projects/<hash>`), the
- * string-slice heuristic would return `~` — which is catastrophically wrong.
- * In that case, fall back to reading the worktree's `.git` file, which
- * contains a `gitdir:` pointer to the real project's `.git/worktrees/<name>`,
- * giving the real project root unambiguously.
+ * Handles both direct and symlink-resolved worktree layouts. Guards against
+ * resolving to the user's home directory by falling back to the worktree's
+ * .git file for recovery.
  *
  * Use this in commands that call `process.cwd()` to ensure they always
  * operate against the real project root, not a worktree subdirectory.
  */
 export function resolveProjectRoot(basePath: string): string {
-  // Layer 1: If the coordinator passed the real project root, use it.
+  // If the coordinator passed the real project root, use it.
   if (process.env.GSD_PROJECT_ROOT) {
     return process.env.GSD_PROJECT_ROOT;
   }
 
-  const normalizedPath = basePath.replaceAll("\\", "/");
-  const seg = findWorktreeSegment(normalizedPath);
-  if (!seg) return basePath;
-
-  // Candidate root via the string-slice heuristic
-  const sepChar = basePath.includes("\\") ? "\\" : "/";
-  const gsdMarker = `${sepChar}.gsd${sepChar}`;
-  const gsdIdx = basePath.indexOf(gsdMarker);
-  const candidate = gsdIdx !== -1
-    ? basePath.slice(0, gsdIdx)
-    : basePath.slice(0, seg.gsdIdx);
-
-  // Layer 2: Guard against resolving to the user's home directory.
-  // When .gsd is a symlink into ~/.gsd/projects/<hash>, the resolved path
-  // contains /.gsd/ at the user-level boundary. Slicing there yields ~ — wrong.
-  const gsdHome = normalizePathForCompare(process.env.GSD_HOME || join(homedir(), ".gsd"));
-  const candidateGsdPath = normalizePathForCompare(join(candidate, ".gsd"));
-
-  if (candidateGsdPath === gsdHome || candidateGsdPath.startsWith(gsdHome + "/")) {
-    // The candidate is the home directory (or within it in a way that .gsd
-    // maps to the user-level GSD dir). Try to recover the real project root
-    // from the worktree's .git file.
-    const realRoot = resolveProjectRootFromGitFile(basePath);
-    if (realRoot) return realRoot;
-    // If git file resolution failed, return basePath unchanged rather than ~
-    return basePath;
-  }
-
-  return candidate;
+  const result = detectWorktreePath(basePath);
+  return result?.projectRoot ?? basePath;
 }
 
 /**

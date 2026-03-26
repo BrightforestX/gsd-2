@@ -1,10 +1,11 @@
 import { existsSync } from "node:fs";
-import { join, sep } from "node:path";
+import { join } from "node:path";
 
 import type { ExtensionAPI } from "@gsd/pi-coding-agent";
 import { createBashTool, createEditTool, createReadTool, createWriteTool } from "@gsd/pi-coding-agent";
 
 import { DEFAULT_BASH_TIMEOUT_SECS } from "../constants.js";
+import { detectWorktreePath } from "../worktree.js";
 
 /**
  * Resolve the correct DB path for the current working directory.
@@ -13,24 +14,10 @@ import { DEFAULT_BASH_TIMEOUT_SECS } from "../constants.js";
  * returns `<basePath>/.gsd/gsd.db`.
  */
 export function resolveProjectRootDbPath(basePath: string): string {
-  // Detect worktree: look for `.gsd/worktrees/` in the path segments.
-  // A worktree path looks like: /project/root/.gsd/worktrees/M001/...
-  // We need to resolve back to /project/root/.gsd/gsd.db
-  const marker = `${sep}.gsd${sep}worktrees${sep}`;
-  const idx = basePath.indexOf(marker);
-  if (idx !== -1) {
-    const projectRoot = basePath.slice(0, idx);
-    return join(projectRoot, ".gsd", "gsd.db");
+  const detected = detectWorktreePath(basePath);
+  if (detected) {
+    return join(detected.projectRoot, ".gsd", "gsd.db");
   }
-
-  // Also handle forward-slash paths on all platforms
-  const fwdMarker = "/.gsd/worktrees/";
-  const fwdIdx = basePath.indexOf(fwdMarker);
-  if (fwdIdx !== -1) {
-    const projectRoot = basePath.slice(0, fwdIdx);
-    return join(projectRoot, ".gsd", "gsd.db");
-  }
-
   return join(basePath, ".gsd", "gsd.db");
 }
 

@@ -18,11 +18,10 @@ import {
   unlinkSync,
   readdirSync,
 } from "node:fs";
-import { join, sep as pathSep } from "node:path";
+import { join } from "node:path";
 import { homedir } from "node:os";
 import { safeCopy, safeCopyRecursive } from "./safe-fs.js";
-
-const gsdHome = process.env.GSD_HOME || join(homedir(), ".gsd");
+import { detectWorktreePath } from "./worktree.js";
 
 // ─── Project Root → Worktree Sync ─────────────────────────────────────────
 
@@ -173,34 +172,10 @@ export function checkResourcesStale(
  * Returns the corrected base path.
  */
 export function escapeStaleWorktree(base: string): string {
-  // Direct layout: /.gsd/worktrees/
-  const directMarker = `${pathSep}.gsd${pathSep}worktrees${pathSep}`;
-  let idx = base.indexOf(directMarker);
-  if (idx === -1) {
-    // Symlink-resolved layout: /.gsd/projects/<hash>/worktrees/
-    const symlinkRe = new RegExp(
-      `\\${pathSep}\\.gsd\\${pathSep}projects\\${pathSep}[a-f0-9]+\\${pathSep}worktrees\\${pathSep}`,
-    );
-    const match = base.match(symlinkRe);
-    if (!match || match.index === undefined) return base;
-    idx = match.index;
-  }
+  const detected = detectWorktreePath(base);
+  if (!detected) return base;
 
-  // base is inside .gsd/worktrees/<something> — extract the project root
-  const projectRoot = base.slice(0, idx);
-
-  // Guard: If the candidate project root's .gsd IS the user-level ~/.gsd,
-  // the string-slice heuristic matched the wrong /.gsd/ boundary. This happens
-  // when .gsd is a symlink into ~/.gsd/projects/<hash> and process.cwd()
-  // resolved through the symlink. Returning ~ would be catastrophic (#1676).
-  const candidateGsd = join(projectRoot, ".gsd").replaceAll("\\", "/");
-  const gsdHomePath = gsdHome.replaceAll("\\", "/");
-  if (candidateGsd === gsdHomePath || candidateGsd.startsWith(gsdHomePath + "/")) {
-    // Don't chdir to home — return base unchanged.
-    // resolveProjectRoot() in worktree.ts has the full git-file-based recovery
-    // and will be called by the caller (startAuto → projectRoot()).
-    return base;
-  }
+  const { projectRoot } = detected;
 
   try {
     process.chdir(projectRoot);
