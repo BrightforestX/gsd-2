@@ -1,6 +1,4 @@
-/**
- * Shared utilities for the auto-loop modules (auto-post-unit, auto, etc.).
- */
+// Shared utilities for the auto-loop modules (auto-post-unit, auto, etc.).
 
 import { debugLog } from "./debug-logger.js";
 
