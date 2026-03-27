@@ -1,5 +1,7 @@
-import type { DaemonConfig } from './types.js';
+import type { DaemonConfig, ProjectInfo } from './types.js';
 import type { Logger } from './logger.js';
+import { SessionManager } from './session-manager.js';
+import { scanForProjects } from './project-scanner.js';
 
 /**
  * Core daemon class — ties config + logger together with lifecycle management.
@@ -10,6 +12,7 @@ export class Daemon {
   private keepaliveTimer: ReturnType<typeof setInterval> | undefined;
   private readonly onSigterm: () => void;
   private readonly onSigint: () => void;
+  private sessionManager: SessionManager | undefined;
 
   constructor(
     private readonly config: DaemonConfig,
@@ -21,6 +24,8 @@ export class Daemon {
 
   /** Start the daemon: log startup info, register signal handlers, start keepalive. */
   async start(): Promise<void> {
+    this.sessionManager = new SessionManager(this.logger);
+
     this.logger.info('daemon started', {
       log_level: this.config.log.level,
       scan_roots: this.config.projects.scan_roots.length,
@@ -35,7 +40,20 @@ export class Daemon {
     this.keepaliveTimer = setInterval(() => {}, 60_000);
   }
 
-  /** Idempotent shutdown: log, close logger, exit. */
+  /** Scan configured project roots for project directories. */
+  async scanProjects(): Promise<ProjectInfo[]> {
+    return scanForProjects(this.config.projects.scan_roots);
+  }
+
+  /** Accessor for the session manager (available after start()). */
+  getSessionManager(): SessionManager {
+    if (!this.sessionManager) {
+      throw new Error('Daemon not started — call start() before accessing the session manager');
+    }
+    return this.sessionManager;
+  }
+
+  /** Idempotent shutdown: log, cleanup sessions, close logger, exit. */
   async shutdown(): Promise<void> {
     if (this.shuttingDown) return;
     this.shuttingDown = true;
@@ -50,6 +68,11 @@ export class Daemon {
     if (this.keepaliveTimer) {
       clearInterval(this.keepaliveTimer);
       this.keepaliveTimer = undefined;
+    }
+
+    // Clean up active sessions before closing logger
+    if (this.sessionManager) {
+      await this.sessionManager.cleanup();
     }
 
     await this.logger.close();

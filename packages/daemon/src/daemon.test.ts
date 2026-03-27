@@ -1,6 +1,6 @@
 import { describe, it, afterEach, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir, homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
@@ -10,6 +10,7 @@ import { dirname } from 'node:path';
 import { resolveConfigPath, loadConfig, validateConfig } from './config.js';
 import { Logger } from './logger.js';
 import { Daemon } from './daemon.js';
+import { SessionManager } from './session-manager.js';
 import type { DaemonConfig, LogEntry } from './types.js';
 
 // ---------- helpers ----------
@@ -519,5 +520,141 @@ log:
       assert.equal(execErr.status, 1);
       assert.ok(execErr.stderr.includes('fatal'));
     }
+  });
+});
+
+// ---------- Daemon + SessionManager integration ----------
+
+describe('Daemon integration', () => {
+  it('getSessionManager() returns SessionManager after start()', async () => {
+    const dir = tmpDir();
+    cleanupDirs.push(dir);
+    const logPath = join(dir, 'daemon-sm.log');
+
+    const config: DaemonConfig = {
+      discord: undefined,
+      projects: { scan_roots: [] },
+      log: { file: logPath, level: 'info', max_size_mb: 50 },
+    };
+
+    const logger = new Logger({ filePath: logPath, level: 'info' });
+    const daemon = new Daemon(config, logger);
+
+    await daemon.start();
+
+    const sm = daemon.getSessionManager();
+    assert.ok(sm instanceof SessionManager);
+
+    // Clean shutdown
+    const origExit = process.exit;
+    // @ts-expect-error — overriding process.exit for test
+    process.exit = () => {};
+    try {
+      await daemon.shutdown();
+    } finally {
+      process.exit = origExit;
+    }
+  });
+
+  it('getSessionManager() throws before start()', async () => {
+    const dir = tmpDir();
+    cleanupDirs.push(dir);
+    const logPath = join(dir, 'daemon-nostart.log');
+
+    const config: DaemonConfig = {
+      discord: undefined,
+      projects: { scan_roots: [] },
+      log: { file: logPath, level: 'info', max_size_mb: 50 },
+    };
+
+    const logger = new Logger({ filePath: logPath, level: 'info' });
+    const daemon = new Daemon(config, logger);
+
+    assert.throws(
+      () => daemon.getSessionManager(),
+      (err: Error) => {
+        assert.ok(err.message.includes('Daemon not started'));
+        return true;
+      }
+    );
+
+    // Close logger to prevent async write stream from hitting cleaned-up tmpdir
+    await logger.close();
+  });
+
+  it('scanProjects() delegates to scanForProjects with configured roots', async () => {
+    const dir = tmpDir();
+    cleanupDirs.push(dir);
+    const logPath = join(dir, 'daemon-scan.log');
+
+    // Create a fake project root with a project that has a .git marker
+    const scanRoot = join(dir, 'projects');
+    mkdirSync(scanRoot);
+    const projectDir = join(scanRoot, 'my-project');
+    mkdirSync(projectDir);
+    mkdirSync(join(projectDir, '.git'));
+
+    const config: DaemonConfig = {
+      discord: undefined,
+      projects: { scan_roots: [scanRoot] },
+      log: { file: logPath, level: 'info', max_size_mb: 50 },
+    };
+
+    const logger = new Logger({ filePath: logPath, level: 'info' });
+    const daemon = new Daemon(config, logger);
+
+    await daemon.start();
+
+    const projects = await daemon.scanProjects();
+    assert.ok(projects.length >= 1);
+    const found = projects.find(p => p.name === 'my-project');
+    assert.ok(found);
+    assert.ok(found.markers.includes('git'));
+
+    // Clean shutdown
+    const origExit = process.exit;
+    // @ts-expect-error — overriding process.exit for test
+    process.exit = () => {};
+    try {
+      await daemon.shutdown();
+    } finally {
+      process.exit = origExit;
+    }
+  });
+
+  it('shutdown cleans up sessionManager before closing logger', async () => {
+    const dir = tmpDir();
+    cleanupDirs.push(dir);
+    const logPath = join(dir, 'daemon-cleanup.log');
+
+    const config: DaemonConfig = {
+      discord: undefined,
+      projects: { scan_roots: [] },
+      log: { file: logPath, level: 'info', max_size_mb: 50 },
+    };
+
+    const logger = new Logger({ filePath: logPath, level: 'info' });
+    const daemon = new Daemon(config, logger);
+
+    await daemon.start();
+
+    // Access sessionManager to verify it exists
+    const sm = daemon.getSessionManager();
+    assert.ok(sm);
+
+    // Shutdown — should not throw even though sessionManager has no active sessions
+    const origExit = process.exit;
+    // @ts-expect-error — overriding process.exit for test
+    process.exit = () => {};
+    try {
+      await daemon.shutdown();
+    } finally {
+      process.exit = origExit;
+    }
+
+    // Verify log contains both started and shutting down
+    const content = readFileSync(logPath, 'utf-8');
+    assert.ok(content.includes('daemon started'));
+    assert.ok(content.includes('daemon shutting down'));
   });
 });
