@@ -1,6 +1,6 @@
 # gsd-capabilities (Python)
 
-[Pydantic](https://docs.pydantic.dev/) v2 models generated from `ontologies/gsd-capabilities.linkml.yaml` via the [LinkML CLI](https://linkml.io/linkml/), plus helpers for validating payloads before MCP tool calls and building JSON bodies for external HTTP APIs.
+[Pydantic](https://docs.pydantic.dev/) v2 models generated from `schema/gsd-capabilities.linkml.yaml` via the [LinkML CLI](https://linkml.io/linkml/), plus helpers for validating payloads before MCP tool calls and building JSON bodies for external HTTP APIs.
 
 ## Regenerate models
 

@@ -90,7 +90,7 @@ linkml_meta = LinkMLMeta({'annotations': {'alignment_note': {'tag': 'alignment_n
                           'prefix_reference': 'http://www.w3.org/2001/XMLSchema#'}},
      'see_also': ['https://linkml.io/linkml/schemas/index.html',
                   'https://brightforest.dev/'],
-     'source_file': '/Users/clifforddalsoniii/Documents/Brightforest/projects/tools/gsd-2/ontologies/gsd-capabilities.linkml.yaml',
+     'source_file': 'packages/gsd-capabilities-py/schema/gsd-capabilities.linkml.yaml',
      'subsets': {'gsd_core_surface': {'description': 'Entities shown in doctor '
                                                      'output and React Flow '
                                                      'ontology canvas.',
