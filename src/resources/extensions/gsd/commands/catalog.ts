@@ -61,7 +61,7 @@ export const TOP_LEVEL_SUBCOMMANDS: readonly GsdCommandDefinition[] = [
   { cmd: "learn", desc: "Learning overlays stub (see docs/configuration.md)" },
   { cmd: "knowledge", desc: "Add persistent project knowledge (rule, pattern, or lesson)" },
   { cmd: "new-milestone", desc: "Create a milestone from a specification document (headless)" },
-  { cmd: "parallel", desc: "Parallel milestone orchestration (start, status, stop, merge)" },
+  { cmd: "parallel", desc: "Parallel milestone orchestration (start, status, stop, merge, watch)" },
   { cmd: "cmux", desc: "Manage cmux integration (status, sidebar, notifications, splits)" },
   { cmd: "park", desc: "Park a milestone — skip without deleting" },
   { cmd: "unpark", desc: "Reactivate a parked milestone" },
@@ -102,6 +102,7 @@ const NESTED_COMPLETIONS: CompletionMap = {
     { cmd: "pause", desc: "Pause a specific worker" },
     { cmd: "resume", desc: "Resume a paused worker" },
     { cmd: "merge", desc: "Merge completed milestone branches" },
+    { cmd: "watch", desc: "Live TUI dashboard monitoring all workers" },
   ],
   setup: [
     { cmd: "llm", desc: "Configure LLM provider settings" },

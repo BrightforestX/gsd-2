@@ -135,9 +135,11 @@ export interface GSDPhaseModelConfig {
 export interface GSDModelConfig {
   research?: string;
   planning?: string;
+  discuss?: string;
   execution?: string;
   execution_simple?: string;
   completion?: string;
+  validation?: string;
   subagent?: string;
 }
 
@@ -148,9 +150,11 @@ export interface GSDModelConfig {
 export interface GSDModelConfigV2 {
   research?: string | GSDPhaseModelConfig;
   planning?: string | GSDPhaseModelConfig;
+  discuss?: string | GSDPhaseModelConfig;
   execution?: string | GSDPhaseModelConfig;
   execution_simple?: string | GSDPhaseModelConfig;
   completion?: string | GSDPhaseModelConfig;
+  validation?: string | GSDPhaseModelConfig;
   subagent?: string | GSDPhaseModelConfig;
 }
 
