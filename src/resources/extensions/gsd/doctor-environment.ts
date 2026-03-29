@@ -329,6 +329,25 @@ function checkDiskSpace(basePath: string): EnvironmentCheckResult | null {
 }
 
 /**
+ * When `.gsd/` exists, surface pointers to sandbox lanes (Docker, subagent isolation, E2B, prefs).
+ */
+function checkGsdSandboxInfo(basePath: string): EnvironmentCheckResult | null {
+  if (!existsSync(join(basePath, ".gsd"))) return null;
+  const detail = [
+    "Git milestone isolation: `git.isolation` in PREFERENCES.md.",
+    "Subagent FS isolation: Pi `settings.json` `taskIsolation.mode` (worktree | fuse-overlay).",
+    "Declared lane (docs): `execution.isolation` host|overlay|docker|e2b in PREFERENCES.md — see docs/configuration.md.",
+    "Docker template: docker/README.md. Optional E2B: E2B_API_KEY. Heavy CI Docker: GSD_DOCKER_SMOKE.",
+  ].join(" ");
+  return {
+    name: "gsd_sandbox",
+    status: "ok",
+    message: "GSD sandbox / isolation pointers (informational)",
+    detail,
+  };
+}
+
+/**
  * Check if Docker is available when project has a Dockerfile.
  */
 function checkDocker(basePath: string): EnvironmentCheckResult | null {
@@ -543,6 +562,9 @@ export function runEnvironmentChecks(basePath: string): EnvironmentCheckResult[]
 
   const dockerCheck = checkDocker(basePath);
   if (dockerCheck) results.push(dockerCheck);
+
+  const gsdSandbox = checkGsdSandboxInfo(basePath);
+  if (gsdSandbox) results.push(gsdSandbox);
 
   results.push(...checkProjectTools(basePath));
 

@@ -5,6 +5,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { getAgentDir, parseFrontmatter } from "@gsd/pi-coding-agent";
+import { appendLearnOverlayMarkdown } from "./learn-overlay.js";
 
 export type AgentScope = "user" | "project" | "both";
 
@@ -65,7 +66,7 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
 			description: frontmatter.description,
 			tools: tools && tools.length > 0 ? tools : undefined,
 			model: frontmatter.model,
-			systemPrompt: body,
+			systemPrompt: appendLearnOverlayMarkdown(frontmatter.name, body),
 			source,
 			filePath,
 		});

@@ -176,6 +176,40 @@ async function closeAll(): Promise<void> {
 	toolCache.clear();
 }
 
+/** Test hook: drop cached MCP config and close connections. */
+export function clearMcpClientCachesForTests(): void {
+	configCache = null;
+	toolCache.clear();
+	void closeAll();
+}
+
+/**
+ * Programmatic MCP tool call (CLI, tests) — same behavior as the `mcp_call` tool.
+ */
+export async function callMcpToolProgrammatic(
+	server: string,
+	tool: string,
+	args: Record<string, unknown> = {},
+	signal?: AbortSignal,
+): Promise<string> {
+	const client = await getOrConnect(server, signal);
+	const result = await client.callTool(
+		{ name: tool, arguments: args },
+		undefined,
+		{ signal, timeout: 60_000 },
+	);
+	const contentItems = result.content as Array<{ type: string; text?: string }>;
+	const raw = contentItems
+		.map((c) => (c.type === "text" ? c.text ?? "" : JSON.stringify(c)))
+		.join("\n");
+	const truncation = truncateHead(raw, { maxLines: DEFAULT_MAX_LINES, maxBytes: DEFAULT_MAX_BYTES });
+	let finalText = truncation.content;
+	if (truncation.truncated) {
+		finalText += `\n\n[Output truncated: ${truncation.outputLines}/${truncation.totalLines} lines (${formatSize(truncation.outputBytes)} of ${formatSize(truncation.totalBytes)})]`;
+	}
+	return finalText;
+}
+
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
 function formatServerList(servers: McpServerConfig[]): string {

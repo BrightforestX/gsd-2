@@ -368,17 +368,17 @@ describe("RuleRegistry", () => {
     assert.deepStrictEqual(result, null, "quick-task skipped");
   });
 
-  test("evaluatePreDispatch bypasses hook units", () => {
+  test("evaluatePreDispatch bypasses hook units", async () => {
     const registry = new RuleRegistry([]);
-    const result = registry.evaluatePreDispatch("hook/review", "M001/S01/T01", "prompt", "/tmp/test");
+    const result = await registry.evaluatePreDispatch("hook/review", "M001/S01/T01", "prompt", "/tmp/test");
     assert.deepStrictEqual(result.action, "proceed", "hook units always proceed");
     assert.deepStrictEqual(result.prompt, "prompt", "prompt unchanged");
     assert.deepStrictEqual(result.firedHooks.length, 0, "no hooks fired");
   });
 
-  test("evaluatePreDispatch proceeds with empty hooks", () => {
+  test("evaluatePreDispatch proceeds with empty hooks", async () => {
     const registry = new RuleRegistry([]);
-    const result = registry.evaluatePreDispatch("execute-task", "M001/S01/T01", "original prompt", "/tmp/test");
+    const result = await registry.evaluatePreDispatch("execute-task", "M001/S01/T01", "original prompt", "/tmp/test");
     assert.deepStrictEqual(result.action, "proceed", "proceeds when no hooks");
     assert.deepStrictEqual(result.prompt, "original prompt", "prompt unchanged");
   });

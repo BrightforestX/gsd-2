@@ -2,6 +2,11 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@gsd/pi-coding-agent
 
 import { enableDebug } from "../../debug-logger.js";
 import { dispatchDirectPhase } from "../../auto-direct-dispatch.js";
+import {
+	runResearchCliInner,
+	parseResearchCliArgs,
+	parseResearchArgvFromString,
+} from "../../research-cli-run.js";
 import { handleConfig } from "../../commands-config.js";
 import { handleDoctor, handleCapture, handleKnowledge, handleRunHook, handleSkillHealth, handleSteer, handleTriage, handleUpdate } from "../../commands-handlers.js";
 import { handleInspect } from "../../commands-inspect.js";
@@ -167,6 +172,25 @@ Examples:
   }
   if (trimmed === "remote" || trimmed.startsWith("remote ")) {
     await handleRemote(trimmed.replace(/^remote\s*/, "").trim(), ctx, pi);
+    return true;
+  }
+  if (trimmed === "research" || trimmed.startsWith("research ")) {
+    const argStr = trimmed.slice("research".length).trim();
+    let parsed;
+    try {
+      parsed = parseResearchCliArgs(argStr ? parseResearchArgvFromString(argStr) : []);
+    } catch (e) {
+      ctx.ui.notify(e instanceof Error ? e.message : String(e), "error");
+      return true;
+    }
+    const r = await runResearchCliInner(projectRoot(), {
+      forceSlice: parsed.forceSlice,
+      forceMilestone: parsed.forceMilestone,
+      mcpServer: parsed.mcpServer,
+      mcpTool: parsed.mcpTool,
+      mcpArgs: parsed.mcpArgs,
+    });
+    ctx.ui.notify(r.message, r.ok ? "success" : "error");
     return true;
   }
   if (trimmed === "dispatch" || trimmed.startsWith("dispatch ")) {

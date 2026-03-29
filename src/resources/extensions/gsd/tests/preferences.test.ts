@@ -397,6 +397,24 @@ test("experimental.rtk: non-boolean produces error", () => {
   assert.ok(result.errors.some(e => e.includes("experimental.rtk")), `expected rtk error in: ${JSON.stringify(result.errors)}`);
 });
 
+test("execution.isolation accepts host overlay docker e2b", () => {
+  for (const iso of ["host", "overlay", "docker", "e2b"] as const) {
+    const { errors, preferences } = validatePreferences({ execution: { isolation: iso } });
+    assert.equal(errors.length, 0, String(errors));
+    assert.equal(preferences.execution?.isolation, iso);
+  }
+});
+
+test("execution.isolation rejects invalid values", () => {
+  const { errors } = validatePreferences({ execution: { isolation: "overlayfs" as never } });
+  assert.ok(errors.some((e) => e.includes("execution.isolation")));
+});
+
+test("execution: unknown key warns", () => {
+  const { warnings } = validatePreferences({ execution: { isolation: "host", extra: true } } as any);
+  assert.ok(warnings.some((w) => w.includes('unknown execution key "extra"')));
+});
+
 test("experimental: non-object produces error", () => {
   const result = validatePreferences({ experimental: true } as unknown as GSDPreferences);
   assert.ok(result.errors.some(e => e.includes("experimental must be an object")));

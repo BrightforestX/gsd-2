@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gsd-capabilities"
+version = "0.1.0"
+description = "Pydantic models from GSD LinkML + MCP / HTTP payload helpers"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.7,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "pytest-cov>=5",
+]
+
+[project.scripts]
+gsd-capabilities = "gsd_capabilities.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gsd_capabilities"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+pythonpath = ["src"]
+
+[tool.coverage.run]
+branch = true
+source = ["gsd_capabilities"]
+omit = [
+  "*/generated/*",
+]
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+skip_empty = true

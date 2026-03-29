@@ -24,8 +24,20 @@ if (typeof process !== "undefined" && (process.versions?.node || process.version
 }
 
 import type { KnownProvider } from "./types.js";
+import { parseGsdTruthyEnv, warnInvalidGsdEnvOnce } from "./gsd-env-boolean.js";
 
 let cachedVertexAdcCredentialsExists: boolean | null = null;
+
+/** True when ~/.aws/credentials or ~/.aws/config exists (SDK default chain may use them). */
+function hasAwsSharedCredentialFiles(): boolean {
+	if (!_existsSync || !_homedir || !_join) {
+		return false;
+	}
+	const home = _homedir();
+	return (
+		_existsSync(_join(home, ".aws", "credentials")) || _existsSync(_join(home, ".aws", "config"))
+	);
+}
 
 function hasVertexAdcCredentials(): boolean {
 	if (cachedVertexAdcCredentialsExists === null) {
@@ -115,6 +127,14 @@ export function getEnvApiKey(provider: any): string | undefined {
 			process.env.AWS_CONTAINER_CREDENTIALS_FULL_URI ||
 			process.env.AWS_WEB_IDENTITY_TOKEN_FILE
 		) {
+			return "<authenticated>";
+		}
+
+		// 7. GSD_BEDROCK_ASSUME_DEFAULT_CREDS + default shared AWS config files (~/.aws/*)
+		//    so `gsd --list-models` can show amazon-bedrock when the SDK default chain works.
+		const assumeRaw = process.env.GSD_BEDROCK_ASSUME_DEFAULT_CREDS;
+		warnInvalidGsdEnvOnce("GSD_BEDROCK_ASSUME_DEFAULT_CREDS", assumeRaw);
+		if (parseGsdTruthyEnv(assumeRaw).enabled && hasAwsSharedCredentialFiles()) {
 			return "<authenticated>";
 		}
 	}

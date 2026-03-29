@@ -153,6 +153,30 @@ export async function handleMcpStatus(
   args: string,
   ctx: ExtensionCommandContext,
 ): Promise<void> {
+  const trimmedAll = args.trim();
+  if (trimmedAll.toLowerCase().startsWith("bootstrap")) {
+    const { matchMcpCatalog, buildMcpServersPatch, runMcpBootstrapCommand } = await import("./mcp-bootstrap.js");
+    const { parseResearchArgvFromString } = await import("./research-cli-run.js");
+    const tail = trimmedAll.slice("bootstrap".length).trim();
+    const argv = parseResearchArgvFromString(tail);
+    const cwd = process.cwd();
+    if (!argv.includes("--apply")) {
+      const matches = matchMcpCatalog(cwd);
+      const patch = buildMcpServersPatch(cwd, matches);
+      ctx.ui.notify(
+        `mcp bootstrap (dry-run)\n${JSON.stringify({ matched: matches.map((m) => m.id), wouldMerge: patch }, null, 2)}`,
+        "info",
+      );
+      return;
+    }
+    const code = await runMcpBootstrapCommand(cwd, argv);
+    ctx.ui.notify(
+      code === 0 ? "mcp bootstrap finished" : "mcp bootstrap failed — check stderr / logs",
+      code === 0 ? "success" : "error",
+    );
+    return;
+  }
+
   const trimmed = args.trim().toLowerCase();
   const configs = readMcpConfigs();
 

@@ -202,6 +202,8 @@ Full documentation is available at **[gsd.build](https://gsd.build)** (powered b
 - **[Pipeline Simplification (ADR-003)](./docs/ADR-003-pipeline-simplification.md)** — merged research into planning, mechanical completion
 - **[Docker Sandbox](./docker/README.md)** — run GSD auto mode in an isolated Docker container
 - **[Migration from v1](./docs/migration.md)** — `.planning` → `.gsd` migration
+- **[Contributing meta-specs / OpenSpec](./docs/contributing-meta-specs.md)** — optional machine-readable spec bootstrap (`openspec/`)
+- **Env variable names (no secrets):** [.env.example](./.env.example) — semantics in [Configuration](./docs/configuration.md)
 
 ---
 

@@ -1,0 +1,49 @@
+/* ── Canvas Controls panel (bottom-left) ──────────────────────────────────── */
+
+.cc-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: var(--pf-bg-panel);
+  border: 1px solid var(--pf-border);
+  border-radius: var(--pf-radius-lg);
+  padding: 5px;
+  box-shadow: var(--pf-shadow-panel);
+  margin-bottom: 10px;
+  margin-left: 8px;
+}
+
+.cc-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: none;
+  border: none;
+  border-radius: var(--pf-radius);
+  cursor: pointer;
+  color: var(--pf-text-muted);
+  padding: 0;
+  transition: background 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+
+.cc-btn:hover {
+  background: var(--pf-bg-hover);
+  color: var(--pf-accent);
+}
+
+.cc-btn--active {
+  background: var(--pf-accent-muted);
+  color: var(--pf-accent);
+}
+
+.cc-divider {
+  width: 20px;
+  height: 1px;
+  background: var(--pf-border);
+  margin: 2px 0;
+  flex-shrink: 0;
+}

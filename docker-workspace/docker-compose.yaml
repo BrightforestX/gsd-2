@@ -1,0 +1,33 @@
+# GSD-2 + Ruflo — single workspace image (requires sibling: ../ruflo next to gsd-2).
+#
+# Build image (no bind mounts; deps baked in):
+#   cd docker-workspace && docker compose build
+#   docker compose run --rm workspace
+#
+# Dev: live-mount both repos (run npm ci inside once if node_modules missing on host):
+#   docker compose --profile dev run --rm workspace-dev
+
+services:
+  workspace:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      additional_contexts:
+        gsd2: ..
+        ruflo: ../../ruflo
+    image: gsd-ruflo-workspace:local
+    container_name: gsd-ruflo-workspace
+    stdin_open: true
+    tty: true
+    working_dir: /workspace/gsd-2
+
+  workspace-dev:
+    profiles: [dev]
+    image: gsd-ruflo-workspace:local
+    container_name: gsd-ruflo-workspace-dev
+    stdin_open: true
+    tty: true
+    working_dir: /workspace/gsd-2
+    volumes:
+      - ..:/workspace/gsd-2
+      - ../../ruflo:/workspace/ruflo

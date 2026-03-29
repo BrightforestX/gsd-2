@@ -21,6 +21,7 @@ import { resolvePostUnitHooks, resolvePreDispatchHooks } from "./preferences.js"
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { parseUnitId } from "./unit-id.js";
+import { runPreDispatchShellHook } from "./shell-hook-runner.js";
 
 // ─── Artifact Path Resolution ──────────────────────────────────────────────
 
@@ -272,12 +273,12 @@ export class RuleRegistry {
    * Replicate exact semantics of runPreDispatchHooks from post-unit-hooks.ts:
    * modify/skip/replace compose semantics.
    */
-  evaluatePreDispatch(
+  async evaluatePreDispatch(
     unitType: string,
     unitId: string,
     prompt: string,
     basePath: string,
-  ): PreDispatchResult {
+  ): Promise<PreDispatchResult> {
     // Don't intercept hook units
     if (unitType.startsWith("hook/")) {
       return { action: "proceed", prompt, firedHooks: [] };
@@ -301,6 +302,23 @@ export class RuleRegistry {
     let currentPrompt = prompt;
 
     for (const hook of hooks) {
+      if (hook.enabled === false) continue;
+
+      if (hook.run) {
+        const shellResult = await runPreDispatchShellHook(hook.run, hook.name, basePath);
+        if (!shellResult.ok) {
+          firedHooks.push(hook.name);
+          return {
+            action: "fail",
+            firedHooks,
+            failMessage: shellResult.message,
+          };
+        }
+        if (shellResult.executed) {
+          firedHooks.push(hook.name);
+        }
+      }
+
       if (hook.action === "skip") {
         if (hook.skip_if) {
           const conditionPath = resolveHookArtifactPath(basePath, unitId, hook.skip_if);

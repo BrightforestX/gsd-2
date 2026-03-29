@@ -17,7 +17,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
@@ -215,6 +215,72 @@ test("gsd --list-models runs without crashing", async () => {
     hasTable || hasNoModelsMsg,
     `expected model list or 'No models available', got stdout:\n${result.stdout.slice(0, 300)}`,
   );
+});
+
+// ---------------------------------------------------------------------------
+// 5b. Bedrock appears in --list-models when GSD_BEDROCK_ASSUME_DEFAULT_CREDS + ~/.aws/*
+// ---------------------------------------------------------------------------
+
+test("gsd --list-models bedrock includes amazon-bedrock with assume-default-creds + AWS config files", async () => {
+  const home = mkdtempSync(join(tmpdir(), "gsd-e2e-bedrock-"));
+  mkdirSync(join(home, ".aws"), { recursive: true });
+  writeFileSync(join(home, ".aws", "config"), "[default]\nregion = us-east-1\n", "utf-8");
+
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    HOME: home,
+    GSD_BEDROCK_ASSUME_DEFAULT_CREDS: "true",
+  };
+  delete env.AWS_PROFILE;
+  delete env.AWS_ACCESS_KEY_ID;
+  delete env.AWS_SECRET_ACCESS_KEY;
+  delete env.AWS_SESSION_TOKEN;
+  delete env.AWS_WEB_IDENTITY_TOKEN_FILE;
+  delete env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI;
+  delete env.AWS_CONTAINER_CREDENTIALS_FULL_URI;
+  delete env.AWS_BEARER_TOKEN_BEDROCK;
+
+  let result = await runGsd(["--list-models", "bedrock"], 12_000, env);
+  for (let i = 0; i < 40 && !result.stdout.includes("amazon-bedrock"); i++) {
+    await new Promise((r) => setTimeout(r, 25));
+    result = await runGsd(["--list-models", "bedrock"], 12_000, env);
+  }
+
+  assert.ok(!result.timedOut, "should finish within timeout");
+  assert.strictEqual(result.code, 0, `expected exit 0, got ${result.code}`);
+  assert.ok(
+    stripAnsi(result.stdout).includes("amazon-bedrock"),
+    `expected amazon-bedrock in stdout:\n${result.stdout.slice(0, 800)}`,
+  );
+
+  rmSync(home, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+// 5c. gsd research --milestone writes RESEARCH scaffold in a minimal project
+// ---------------------------------------------------------------------------
+
+test("gsd research --milestone writes M001-RESEARCH.md in a minimal .gsd tree", async () => {
+  const base = mkdtempSync(join(tmpdir(), "gsd-e2e-research-"));
+  const m = join(base, ".gsd", "milestones", "M001");
+  mkdirSync(m, { recursive: true });
+  writeFileSync(join(m, "M001-CONTEXT.md"), "---\ntitle: T\n---\n\n# C\n", "utf-8");
+  writeFileSync(
+    join(m, "M001-ROADMAP.md"),
+    "# M001: Test\n\n**Vision:** V\n\n## Slices\n\n- [ ] **S01: S**",
+    "utf-8",
+  );
+
+  const result = await runGsd(["research", "--milestone"], 20_000, {}, base);
+  assert.ok(!result.timedOut, "should finish");
+  assert.strictEqual(result.code, 0, result.stdout + result.stderr);
+
+  const p = join(m, "M001-RESEARCH.md");
+  assert.ok(existsSync(p), "expected RESEARCH file");
+  const txt = readFileSync(p, "utf-8");
+  assert.ok(txt.includes("## Dispatch prompt"));
+
+  rmSync(base, { recursive: true, force: true });
 });
 
 // ---------------------------------------------------------------------------

@@ -76,6 +76,36 @@ This opens an interactive wizard showing which keys are configured and which are
 4. Environment variables (`export BRAVE_API_KEY=...`) take precedence over saved keys
 5. Anthropic models don't need Brave/Tavily — they have built-in web search
 
+## Environment variables (`GSD_*` and passthrough)
+
+Boolean `GSD_*` flags treat `1`, `true`, and `yes` (case-insensitive) as enabled; any other **non-empty** value is treated as disabled and logs a one-line stderr warning once per variable.
+
+| Variable | Purpose |
+|----------|---------|
+| `GSD_BEDROCK_ASSUME_DEFAULT_CREDS` | When truthy, treat `amazon-bedrock` as authenticated for model discovery if `~/.aws/credentials` or `~/.aws/config` exists (SDK default chain). |
+| `GSD_MCP_TOOLS_ROOT` | **Required for `gsd mcp bootstrap --apply`:** absolute directory where bootstrap materializes markers; no silent default. |
+| `GSD_DOCKER_SMOKE` | When truthy, opt in to heavier Docker build/smoke scripts in CI or locally. |
+| `GSD_SHELL_HOOKS_ENABLED` | Must be truthy for `pre_dispatch_hooks[].run` shell steps to execute; otherwise they are skipped (one debug notice per session). |
+| `GSD_LEARN_OVERLAY_DIR` | Absolute or default `~/.gsd/agent/agents/overlays/` — `<agent>.md` merged after each subagent’s base prompt. |
+| `GSD_PROVIDER_PAYLOAD_LOGGING` | Reserved: when truthy, redacted provider traces (implementation may be extended in tooling that calls providers). |
+
+Passthrough (do not strip from child processes or web tooling): `GROQ_API_KEY`, `E2B_API_KEY`, `STRIPE_SECRET_KEY`, `VERCEL_API_TOKEN`, `VITE_LAUNCHDARKLY_SDK_KEY`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and other `VITE_*` keys used by studio/web.
+
+### `execution` block (sandbox lane declaration)
+
+Separate from **`git.isolation`** (milestone worktrees), you may record a preferred **subagent / sandbox lane** for documentation and future executor alignment:
+
+```yaml
+execution:
+  isolation: host   # host | overlay | docker | e2b
+```
+
+- **`host`** — no subagent filesystem isolation (matches `taskIsolation.mode: none` in Pi `settings.json`).
+- **`overlay`** — corresponds to FUSE overlay style isolation when enabled in Pi settings (`fuse-overlay`).
+- **`docker` / `e2b`** — documented lanes; use `docker/README.md` and optional `E2B_API_KEY` respectively. Full automation may require additional setup.
+
+`/gsd doctor` environment checks on GSD projects (`.gsd/` present) include an informational **`gsd_sandbox`** row linking these options.
+
 ## MCP Servers
 
 GSD can connect to external MCP servers configured in project files. This is useful for local tools, internal APIs, self-hosted services, or integrations that aren't built in as native GSD extensions.

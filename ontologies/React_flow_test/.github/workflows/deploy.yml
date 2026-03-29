@@ -1,0 +1,94 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install LinkML
+        run: pip install linkml
+
+      # ── Redirect network imports to local DCAT-AP+ copy ─────────────────────
+      # Several schema files import `dcatapplus:latest/schema/dcat_ap_plus` which
+      # expands to https://w3id.org/nfdi-de/dcat-ap-plus/ (a 303 redirect).
+      # CI has no network access for schema resolution, so we patch all affected
+      # YAML files in-place to use the local copy at schemas/dcat_ap_plus/.
+      # The checkout is ephemeral; these modifications are never committed.
+      - name: Patch network imports → local DCAT-AP+ schema
+        run: |
+          find schemas -name "*.yaml" \
+            -exec sed -i \
+              's|dcatapplus:latest/schema/dcat_ap_plus|../../dcat_ap_plus/schema/dcat_ap_plus|g' \
+              {} +
+          echo "Patched files:"
+          grep -rn "dcat_ap_plus" schemas --include="*.yaml" | grep "import\|  -" | head -20
+
+      # ── Compile JSON schemas from LinkML YAML sources ───────────────────────
+      - name: Compile chem-dcat-ap schema
+        run: |
+          gen-json-schema schemas/chem_dcat_ap/schema/chem_dcat_ap.yaml \
+            > src/schema/dcat_4c_ap.schema.json
+
+      - name: Compile CoreMeta4Cat schema
+        run: |
+          gen-json-schema schemas/coremeta4cat/schema/coremeta4cat.yaml \
+            > src/schema/coremeta4cat.schema.json
+
+      - name: Compile DCAT-AP+ schema
+        run: |
+          gen-json-schema schemas/dcat_ap_plus/schema/dcat_ap_plus.yaml \
+            > src/schema/dcat_ap_plus.schema.json
+
+      # ── Install JS dependencies ─────────────────────────────────────────────
+      - run: npm ci
+
+      # ── Build all three schema variants ─────────────────────────────────────
+      - name: Build chem-dcat-ap
+        run: VITE_SCHEMA=chemdcat npm run build:app
+
+      - name: Build CoreMeta4Cat
+        run: VITE_SCHEMA=coremeta4cat npm run build:app
+
+      - name: Build DCAT-AP+
+        run: VITE_SCHEMA=dcat-ap-plus npm run build:app
+
+      # ── Copy static docs pages to dist/ root ───────────────────────────────
+      - run: node scripts/copy-docs.mjs
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

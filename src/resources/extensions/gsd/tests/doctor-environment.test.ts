@@ -315,6 +315,20 @@ describe('doctor-environment', async () => {
       assert.ok(dockerCheck !== undefined, "docker check runs when Dockerfile present");
     });
 
+    test('env: gsd_sandbox info when .gsd exists', () => {
+      const dir = createProjectDir({
+        "package.json": JSON.stringify({ name: "test" }),
+      });
+      mkdirSync(join(dir, ".gsd"), { recursive: true });
+      mkdirSync(join(dir, "node_modules"), { recursive: true });
+      cleanups.push(dir);
+      const results = runEnvironmentChecks(dir);
+      const sand = results.find(r => r.name === "gsd_sandbox");
+      assert.ok(sand !== undefined, "gsd_sandbox check when .gsd present");
+      assert.equal(sand!.status, "ok");
+      assert.ok(sand!.detail?.includes("docker/README.md"), "points at Docker doc");
+    });
+
     // ── Doctor Issue Conversion ────────────────────────────────────────
     test('env: converts results to doctor issues', () => {
       const results: EnvironmentCheckResult[] = [

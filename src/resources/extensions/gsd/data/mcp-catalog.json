@@ -1,0 +1,20 @@
+[
+  {
+    "id": "catalog-no-file-signal",
+    "title": "Internal — no match.hasFile (never auto-selected; exercises matcher)",
+    "mcpServerKey": "_gsd_catalog_placeholder",
+    "stdioCommand": "node",
+    "stdioArgs": ["-e", "0"]
+  },
+  {
+    "id": "node-npm-generic",
+    "title": "Node / npm project",
+    "npmPackage": "@modelcontextprotocol/server-filesystem",
+    "match": {
+      "hasFile": "package.json"
+    },
+    "mcpServerKey": "gsd-filesystem",
+    "stdioCommand": "npx",
+    "stdioArgs": ["-y", "@modelcontextprotocol/server-filesystem", "{{ROOT}}"]
+  }
+]

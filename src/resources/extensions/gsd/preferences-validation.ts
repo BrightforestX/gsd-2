@@ -384,13 +384,41 @@ export function validatePreferences(preferences: GSDPreferences): {
       if (typeof hook.model === "string" && hook.model.trim()) validHook.model = hook.model.trim();
       if (hook.enabled !== undefined) validHook.enabled = !!hook.enabled;
 
+      if (hook.run !== undefined && hook.run !== null && typeof hook.run === "object") {
+        const r = hook.run as unknown as Record<string, unknown>;
+        const cmd = typeof r.command === "string" ? r.command.trim() : "";
+        if (!cmd) {
+          errors.push(`pre_dispatch_hooks "${name}" run.command is required when run is set`);
+          continue;
+        }
+        const runCfg: PreDispatchHookConfig["run"] = { command: cmd };
+        if (r.args !== undefined) {
+          if (!Array.isArray(r.args) || !r.args.every((a) => typeof a === "string")) {
+            errors.push(`pre_dispatch_hooks "${name}" run.args must be an array of strings`);
+            continue;
+          }
+          runCfg.args = r.args as string[];
+        }
+        if (typeof r.cwd === "string" && r.cwd.trim()) runCfg.cwd = r.cwd.trim();
+        if (r.timeoutMs !== undefined) {
+          if (typeof r.timeoutMs !== "number" || r.timeoutMs <= 0 || !Number.isFinite(r.timeoutMs)) {
+            errors.push(`pre_dispatch_hooks "${name}" run.timeoutMs must be a positive number`);
+            continue;
+          }
+          runCfg.timeoutMs = r.timeoutMs;
+        }
+        validHook.run = runCfg;
+      }
+
       // Validation: action-specific required fields
       if (action === "replace" && !validHook.prompt) {
         errors.push(`pre_dispatch_hooks "${name}" action "replace" requires prompt`);
         continue;
       }
-      if (action === "modify" && !validHook.prepend && !validHook.append) {
-        errors.push(`pre_dispatch_hooks "${name}" action "modify" requires prepend or append`);
+      if (action === "modify" && !validHook.prepend && !validHook.append && !validHook.run) {
+        errors.push(
+          `pre_dispatch_hooks "${name}" action "modify" requires prepend, append, and/or run`,
+        );
         continue;
       }
 
@@ -790,6 +818,33 @@ export function validatePreferences(preferences: GSDPreferences): {
       validated.show_token_cost = preferences.show_token_cost;
     } else {
       errors.push("show_token_cost must be a boolean");
+    }
+  }
+
+  // ─── Execution / sandbox lane (subagent-oriented) ───────────────────
+  if (preferences.execution !== undefined) {
+    if (typeof preferences.execution === "object" && preferences.execution !== null) {
+      const ex = preferences.execution as unknown as Record<string, unknown>;
+      const validEx: import("./preferences-types.js").GSDExecutionPreferences = {};
+      const validIso = new Set(["host", "overlay", "docker", "e2b"]);
+      if (ex.isolation !== undefined) {
+        if (typeof ex.isolation === "string" && validIso.has(ex.isolation)) {
+          validEx.isolation = ex.isolation as import("./preferences-types.js").GSDExecutionIsolation;
+        } else {
+          errors.push("execution.isolation must be one of: host, overlay, docker, e2b");
+        }
+      }
+      const knownExKeys = new Set(["isolation"]);
+      for (const key of Object.keys(ex)) {
+        if (!knownExKeys.has(key)) {
+          warnings.push(`unknown execution key "${key}" — ignored`);
+        }
+      }
+      if (Object.keys(validEx).length > 0) {
+        validated.execution = validEx;
+      }
+    } else {
+      errors.push("execution must be an object");
     }
   }
 

@@ -94,6 +94,7 @@ export const KNOWN_PREFERENCE_KEYS = new Set<string>([
   "forensics_dedup",
   "show_token_cost",
   "experimental",
+  "execution",
 ]);
 
 /** Canonical list of all dispatch unit types. */
@@ -197,6 +198,13 @@ export interface ExperimentalPreferences {
   rtk?: boolean;
 }
 
+/** Subagent / sandbox execution lane (validated in prefs; full docker/e2b wiring may evolve). */
+export type GSDExecutionIsolation = "host" | "overlay" | "docker" | "e2b";
+
+export interface GSDExecutionPreferences {
+  isolation?: GSDExecutionIsolation;
+}
+
 export interface GSDPreferences {
   version?: number;
   mode?: WorkflowMode;
@@ -253,6 +261,11 @@ export interface GSDPreferences {
    * See the preferences reference for details on each feature.
    */
   experimental?: ExperimentalPreferences;
+  /**
+   * Declared preferred isolation lane for subagent/sandbox flows.
+   * Distinct from `git.isolation` (milestone worktrees). See docs/configuration.md.
+   */
+  execution?: GSDExecutionPreferences;
 }
 
 export interface LoadedGSDPreferences {

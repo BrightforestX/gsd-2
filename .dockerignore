@@ -38,8 +38,8 @@ Thumbs.db
 tmp/
 .cache/
 
-# ── Native build artifacts ──
-native/
+# ── Native build artifacts (keep native/ sources for Docker/workspace builds) ──
+native/target/
 target/
 
 # ── Test fixtures ──

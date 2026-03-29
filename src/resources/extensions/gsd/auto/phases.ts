@@ -639,7 +639,7 @@ export async function runDispatch(
   }
 
   // Pre-dispatch hooks
-  const preDispatchResult = deps.runPreDispatchHooks(
+  const preDispatchResult = await deps.runPreDispatchHooks(
     unitType,
     unitId,
     prompt,
@@ -651,6 +651,13 @@ export async function runDispatch(
       "info",
     );
     deps.emitJournalEvent({ ts: new Date().toISOString(), flowId: ic.flowId, seq: ic.nextSeq(), eventType: "pre-dispatch-hook", data: { firedHooks: preDispatchResult.firedHooks, action: preDispatchResult.action } });
+  }
+  if (preDispatchResult.action === "fail") {
+    const msg = preDispatchResult.failMessage ?? "pre-dispatch shell hook failed";
+    ctx.ui.notify(msg, "error");
+    await deps.stopAuto(ctx, pi, msg);
+    debugLog("autoLoop", { phase: "exit", reason: "pre-dispatch-fail", unitType, unitId });
+    return { action: "break", reason: "pre-dispatch-fail" };
   }
   if (preDispatchResult.action === "skip") {
     ctx.ui.notify(

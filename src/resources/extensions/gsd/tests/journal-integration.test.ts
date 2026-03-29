@@ -88,7 +88,7 @@ function makeMockDeps(
       prompt: "do the thing",
       matchedRule: "test-rule-alpha",
     }),
-    runPreDispatchHooks: () => ({ firedHooks: [], action: "proceed" }),
+    runPreDispatchHooks: async () => ({ firedHooks: [], action: "proceed" as const }),
     getPriorSliceCompletionBlocker: () => null,
     getMainBranch: () => "main",
     closeoutUnit: async () => {},
@@ -408,9 +408,9 @@ test("pre-dispatch-hook event is emitted when hooks fire", async () => {
       prompt: "test",
       matchedRule: "some-rule",
     }),
-    runPreDispatchHooks: () => ({
+    runPreDispatchHooks: async () => ({
       firedHooks: ["observability-check", "lint-gate"],
-      action: "proceed",
+      action: "proceed" as const,
     }),
   });
   const ic = makeIC(deps);

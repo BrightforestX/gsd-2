@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+    <html lang="en" class="scroll-smooth">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>gsd_capabilities — hierarchy</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.2.4/mermaid.min.js"></script>
+        <style>
+            .sidebar { height: calc(100vh - 4rem); }
+            .main-content { height: calc(100vh - 4rem); }
+            .search-highlight { background-color: rgba(145, 174, 183, 0.5); color: #000000; }
+            
+            @media print {
+                .no-print { display: none; }
+                .page-break { page-break-before: always; }
+            }
+            
+            .transition-transform {
+                transition: transform 0.3s ease-in-out;
+            }
+            
+            .rotate-180 {
+                transform: rotate(180deg);
+            }
+        </style>
+    </head>
+    <body class="bg-gray-100">
+        
+        <section id="schema-explorer" class="mb-8">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-2xl font-bold mb-4">Schema Explorer</h2>
+
+                <!-- Overview Section -->
+                <div id="overview-dashboard" class="mb-6">
+                    <div class="grid grid-cols-2 gap-6">
+                        <canvas id="summary-chart" class="h-48"></canvas>
+                        <div id="summary-metadata" class="text-gray-700">
+                            <p><strong>Total Classes:</strong> 7</p>
+                            <p><strong>Total Slots:</strong> 24</p>
+                            <p><strong>Total Enums:</strong> 4</p>
+                            <p><strong>Total Types:</strong> 19</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabs for Navigation -->
+                <div class="tabs mb-4">
+                    <button class="tab-button active" onclick="showTab('classes')">Classes</button>
+                    <button class="tab-button" onclick="showTab('enums')">Enums</button>
+                    <button class="tab-button" onclick="showTab('types')">Types</button>
+                </div>
+
+                <!-- Tab Content -->
+                <div id="classes" class="tab-content active">
+                    <div id="classes-container" class="h-[600px]"></div>
+                </div>
+                <div id="enums" class="tab-content">
+                    <div id="enums-container" class="h-[600px]"></div>
+                </div>
+                <div id="types" class="tab-content">
+                    <div id="types-container" class="h-[600px]"></div>
+                </div>
+
+                <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+                <script src="https://d3js.org/d3.v7.min.js"></script>
+                <script>
+                    const classData = {"name": "Schema Classes", "children": [{"name": "Capability", "type": "class", "children": []}, {"name": "EnvironmentVariable", "type": "class", "children": []}, {"name": "Hook", "type": "class", "children": []}, {"name": "MCPServer", "type": "class", "children": []}, {"name": "ResearchArtifact", "type": "class", "children": []}, {"name": "ExecutionLane", "type": "class", "children": []}]};
+                    const enumData = [{"name": "CapabilityPhase", "type": "enum", "values": ["P0_BEDROCK", "P1_RESEARCH", "P2_SHELL_HOOKS", "P3_MCP_BOOTSTRAP", "P4_LEARNING", "P5_SANDBOX"]}, {"name": "ImplementationStatus", "type": "enum", "values": ["planned", "in_progress", "completed", "deprecated"]}, {"name": "HookKind", "type": "enum", "values": ["post_unit_prompt", "pre_dispatch_prompt", "post_unit_shell", "ci_shell"]}, {"name": "ResearchArtifactKind", "type": "enum", "values": ["milestone_research", "slice_research"]}];
+                    const typeData = [{"name": "string", "type": "type", "base": "str"}, {"name": "integer", "type": "type", "base": "int"}, {"name": "boolean", "type": "type", "base": "Bool"}, {"name": "float", "type": "type", "base": "float"}, {"name": "double", "type": "type", "base": "float"}, {"name": "decimal", "type": "type", "base": "Decimal"}, {"name": "time", "type": "type", "base": "XSDTime"}, {"name": "date", "type": "type", "base": "XSDDate"}, {"name": "datetime", "type": "type", "base": "XSDDateTime"}, {"name": "date_or_datetime", "type": "type", "base": "str"}, {"name": "uriorcurie", "type": "type", "base": "URIorCURIE"}, {"name": "curie", "type": "type", "base": "Curie"}, {"name": "uri", "type": "type", "base": "URI"}, {"name": "ncname", "type": "type", "base": "NCName"}, {"name": "objectidentifier", "type": "type", "base": "ElementIdentifier"}, {"name": "nodeidentifier", "type": "type", "base": "NodeIdentifier"}, {"name": "jsonpointer", "type": "type", "base": "str"}, {"name": "jsonpath", "type": "type", "base": "str"}, {"name": "sparqlpath", "type": "type", "base": "str"}];
+
+                    // Initialize the summary chart
+                    const ctx = document.getElementById('summary-chart').getContext('2d');
+                    new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Classes', 'Slots', 'Enums', 'Types'],
+                            datasets: [{
+                                data: [
+                                    7,
+                                    24,
+                                    4,
+                                    19
+                                ],
+                                backgroundColor: ['#4caf50', '#2196f3', '#ff9800', '#9c27b0'],
+                            }],
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                },
+                            },
+                        },
+                    });
+
+                    // Show the appropriate tab
+                    function showTab(tabName) {
+                        document.querySelectorAll('.tab-content').forEach(tab => {
+                            tab.style.display = tab.id === tabName ? 'block' : 'none';
+                        });
+                        document.querySelectorAll('.tab-button').forEach(button => {
+                            button.classList.toggle('active', button.textContent.toLowerCase() === tabName);
+                        });
+                    }
+
+                    // Render the class hierarchy
+                    const svg = d3.select("#classes-container").append("svg")
+                        .attr("width", 1000)
+                        .attr("height", 600);
+                    const root = d3.hierarchy(classData);
+                    const tree = d3.tree().size([600, 900])(root);
+
+                    // Render tree links
+                    svg.selectAll(".link")
+                        .data(tree.links())
+                        .join("path")
+                        .attr("class", "link")
+                        .attr("d", d3.linkHorizontal()
+                            .x(d => d.y)
+                            .y(d => d.x))
+                        .attr("stroke", "#ccc")
+                        .attr("fill", "none");
+
+                    // Render tree nodes
+                    svg.selectAll(".node")
+                        .data(tree.descendants())
+                        .join("g")
+                        .attr("class", "node")
+                        .attr("transform", d => `translate(${d.y}, ${d.x})`)
+                        .each(function(d) {
+                            d3.select(this)
+                                .append("circle")
+                                .attr("r", 5)
+                                .attr("fill", "#4caf50");
+
+                            d3.select(this)
+                                .append("text")
+                                .attr("dx", 10)
+                                .attr("dy", 3)
+                                .text(d => d.data.name || 'Unnamed');
+                        });
+                </script>
+
+                <style>
+                    .tab-button {
+                        padding: 10px 20px;
+                        cursor: pointer;
+                        border: none;
+                        background: #f0f0f0;
+                        transition: all 0.3s;
+                    }
+                    .tab-button.active {
+                        background: #4caf50;
+                        color: white;
+                    }
+                    .tab-content {
+                        display: none;
+                    }
+                    .tab-content.active {
+                        display: block;
+                    }
+                    .node circle {
+                        fill: #4caf50;
+                        cursor: pointer;
+                    }
+                    .link {
+                        stroke: #ccc;
+                        fill: none;
+                    }
+                </style>
+            </div>
+        </section>
+        
+        <script>
+            // Initialize mermaid for diagrams
+            mermaid.initialize({ startOnLoad: true });
+
+            // Toggle Functions for Schema Sections
+            function toggleSection(sectionType) {
+                const list = document.getElementById(`${sectionType}-list`);
+                const icon = document.getElementById(`${sectionType}-icon`);
+                
+                if (list && icon) {
+                    // Toggle the list visibility
+                    if (list.classList.contains('hidden')) {
+                        list.classList.remove('hidden');
+                        icon.classList.add('rotate-180');
+                    } else {
+                        list.classList.add('hidden');
+                        icon.classList.remove('rotate-180');
+                    }
+                }
+            }
+
+            // Toggle Details for Elements
+            function toggleDetails(detailsId) {
+                const detailsElement = document.getElementById(detailsId);
+                if (!detailsElement) return;
+
+                // Find the parent card and then the button within it
+                const parentCard = detailsElement.closest('[data-searchable="true"]');
+                if (!parentCard) return;
+                
+                const button = parentCard.querySelector('button');
+                if (!button) return;
+
+                const buttonText = button.querySelector('.details-text');
+                const buttonIcon = button.querySelector('svg');
+                
+                if (detailsElement.classList.contains('hidden')) {
+                    // Show details
+                    detailsElement.classList.remove('hidden');
+                    buttonText.textContent = 'Show less';
+                    buttonIcon.classList.add('rotate-180');
+                } else {
+                    // Hide details
+                    detailsElement.classList.add('hidden');
+                    buttonText.textContent = 'Show more';
+                    buttonIcon.classList.remove('rotate-180');
+                }
+            }
+
+            // Initialize sidebar sections to be closed by default
+            document.addEventListener('DOMContentLoaded', function() {
+                // Update the counts but keep sections closed
+                const sections = document.querySelectorAll('[data-section-type]');
+                sections.forEach(section => {
+                    const sectionType = section.dataset.sectionType;
+                    const countElement = document.getElementById(`${sectionType}-count`);
+                    const list = document.getElementById(`${sectionType}-list`);
+                    
+                    if (list && countElement) {
+                        const items = list.querySelectorAll('[data-searchable="true"]');
+                        countElement.textContent = items.length;
+                    }
+                });
+            });
+
+            // Search Functionality
+            function filterElements() {
+                const query = document.getElementById('search-box').value.toLowerCase();
+                const elements = document.querySelectorAll('[data-searchable="true"]');
+                const sections = document.querySelectorAll('[data-section-type]');
+                
+                const totalCounts = {};
+                elements.forEach(el => {
+                    const type = el.dataset.type;
+                    if (!totalCounts[type]) {
+                        totalCounts[type] = 0;
+                    }
+                    totalCounts[type]++;
+                });
+
+                let visibleCount = {};
+
+                elements.forEach(el => {
+                    el.style.display = '';
+                    el.classList.remove('search-highlight');
+                });
+
+                if (query) {
+                    elements.forEach(el => {
+                        const text = el.textContent.toLowerCase();
+                        const type = el.dataset.type;
+
+                        if (!visibleCount[type]) {
+                            visibleCount[type] = 0;
+                        }
+
+                        if (text.includes(query)) {
+                            el.style.display = '';
+                            el.classList.add('search-highlight');
+                            visibleCount[type]++;
+                            
+                            // Show parent section when item matches
+                            const parentSection = el.closest('[data-section-type]');
+                            if (parentSection) {
+                                const sectionType = parentSection.dataset.sectionType;
+                                const list = document.getElementById(`${sectionType}-list`);
+                                const icon = document.getElementById(`${sectionType}-icon`);
+                                if (list) {
+                                    list.classList.remove('hidden');
+                                }
+                                if (icon) {
+                                    icon.classList.add('rotate-180');
+                                }
+                            }
+                        } else {
+                            el.style.display = 'none';
+                        }
+                    });
+
+                    // Update counts for filtered results
+                    Object.keys(totalCounts).forEach(type => {
+                        const countElement = document.getElementById(`${type}-count`);
+                        if (countElement) {
+                            countElement.textContent = visibleCount[type] || 0;
+                        }
+                    });
+                } else {
+                    // Reset search state
+                    sections.forEach(section => {
+                        const sectionType = section.dataset.sectionType;
+                        const list = document.getElementById(`${sectionType}-list`);
+                        const icon = document.getElementById(`${sectionType}-icon`);
+                        const countElement = document.getElementById(`${sectionType}-count`);
+                        
+                        if (list) {
+                            list.classList.add('hidden');
+                            // Get actual count of items in this section
+                            const items = list.querySelectorAll('[data-searchable="true"]');
+                            if (countElement) {
+                                countElement.textContent = items.length;
+                            }
+                        }
+                        
+                        if (icon) {
+                            icon.classList.remove('rotate-180');
+                        }
+                    });
+                }
+            }
+        </script>
+    </body>
+    </html>

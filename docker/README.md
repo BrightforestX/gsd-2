@@ -2,6 +2,8 @@
 
 Run GSD auto mode inside an isolated Docker sandbox so it cannot touch your host filesystem, SSH keys, or other projects.
 
+Optional CI/local smoke: set `GSD_DOCKER_SMOKE=1` (or `true` / `yes`) in the environment where you run heavier Docker build checks so default pipelines stay fast when unset.
+
 ## Prerequisites
 
 - Docker Desktop 4.58+ (macOS or Windows; Linux support is experimental)
@@ -20,6 +22,28 @@ Run GSD auto mode inside an isolated Docker sandbox so it cannot touch your host
 |------|---------|
 | `docker-compose.yaml` | Minimal zero-config setup — just works with sensible defaults |
 | `docker-compose.full.yaml` | Fully documented reference with all options, resource limits, health checks |
+| `../docker-workspace/docker-compose.yaml` | **GSD-2 + Ruflo** — one image with both sibling repos (see below) |
+
+## GSD-2 + Ruflo workspace image
+
+If **gsd-2** and **ruflo** live as sibling folders (same parent directory), you can build a single dev image that installs and wires both:
+
+```bash
+cd docker-workspace
+docker compose build
+docker compose run --rm workspace
+```
+
+Inside the container, **`gsd`** is on `PATH` via `gsd-2/node_modules/.bin`, and **`ruflo`** is installed as `/usr/local/bin/ruflo` (runs `/workspace/ruflo/bin/ruflo.js`).
+
+- **Baked image** (default service `workspace`): sources are copied at build time; no bind mounts.
+- **Live mounts** (profile `dev`): after building once, mount host repos over `/workspace/gsd-2` and `/workspace/ruflo`:
+
+```bash
+docker compose --profile dev run --rm workspace-dev
+```
+
+Requires Docker Compose v2.17+ (additional build contexts). Docker Desktop satisfies this.
 
 Start with `docker-compose.yaml`. Copy options from `docker-compose.full.yaml` when you need them.
 

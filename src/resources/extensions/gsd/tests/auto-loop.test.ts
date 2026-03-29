@@ -363,7 +363,7 @@ function makeMockDeps(
         prompt: "do the thing",
       };
     },
-    runPreDispatchHooks: () => ({ firedHooks: [], action: "proceed" }),
+    runPreDispatchHooks: async () => ({ firedHooks: [], action: "proceed" as const }),
     getPriorSliceCompletionBlocker: () => null,
     getMainBranch: () => "main",
     closeoutUnit: async () => {},

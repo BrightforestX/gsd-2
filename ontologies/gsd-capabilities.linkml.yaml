@@ -1,0 +1,335 @@
+# LinkML schema: GSD agent tooling & capability configuration domain.
+# Source of conceptual truth: in-repo capability phases, env contract, hooks, MCP.
+id: https://brightforest.dev/schema/gsd_capabilities
+name: gsd_capabilities
+title: GSD capabilities ontology
+version: 1.1.0
+
+description: >
+  Classes and slots for describing GSD (Get Stuff Done) feature capabilities,
+  environment variables, pipeline hooks, MCP integration, and research artifacts.
+  Aligns with the phased capability expansion model (P0–P5).
+
+license: https://creativecommons.org/licenses/by/4.0/
+
+see_also:
+  - https://linkml.io/linkml/schemas/index.html
+  - https://brightforest.dev/
+
+id_prefixes:
+  - gsd
+  - LINKML
+
+emit_prefixes:
+  - gsd
+  - linkml
+
+annotations:
+  alignment_note: Models capability phases P0–P5 and tool contracts in-repo.
+  maintainer_domain: brightforest.dev
+
+todos:
+  - Rename ResearchArtifact2 when downstream consumers migrate.
+
+imports:
+  - linkml:types
+
+prefixes:
+  linkml: https://w3id.org/linkml/
+  gsd: https://brightforest.dev/schema/gsd_capabilities/
+  xsd: http://www.w3.org/2001/XMLSchema#
+  rdfs: http://www.w3.org/2000/01/rdf-schema#
+  dcterms: http://purl.org/dc/terms/
+
+default_prefix: gsd
+default_range: string
+
+types:
+  PhaseToken:
+    typeof: string
+    uri: xsd:string
+    pattern: ^P[0-5]_[A-Z0-9_]+$
+    description: Phase bucket token such as P0_BEDROCK.
+
+subsets:
+  gsd_core_surface:
+    description: Entities shown in doctor output and React Flow ontology canvas.
+  gsd_experimental:
+    description: Optional or in-flux modeling; may change across releases.
+
+classes:
+  NamedEntity:
+    description: Anything with a stable identifier and human label.
+    abstract: true
+    class_uri: gsd:NamedEntity
+    slots:
+      - id
+      - name
+      - description
+
+  HasDocumentation:
+    mixin: true
+    description: Records carrying a canonical documentation link.
+    slots:
+      - documentation_uri
+
+  Capability:
+    is_a: NamedEntity
+    mixins:
+      - HasDocumentation
+    class_uri: gsd:Capability
+    in_subset:
+      - gsd_core_surface
+    aliases:
+      - product capability
+    description: A discrete product or CLI capability (e.g. Bedrock discovery, research CLI).
+    slots:
+      - phase
+      - status
+      - related_env_vars
+    slot_usage:
+      phase:
+        recommended: true
+      status:
+        required: false
+
+  EnvironmentVariable:
+    is_a: NamedEntity
+    class_uri: gsd:EnvironmentVariable
+    in_subset:
+      - gsd_core_surface
+    description: A configuration or secret key read from the environment.
+    slots:
+      - variable_name
+      - phase
+      - required_behavior
+      - is_gsd_prefixed
+      - passthrough_only
+      - gates_capabilities
+
+  Hook:
+    is_a: NamedEntity
+    class_uri: gsd:Hook
+    in_subset:
+      - gsd_core_surface
+    description: A user-defined pipeline step (e.g. post-unit, shell run hook).
+    slots:
+      - hook_kind
+      - shell_command
+      - timeout_seconds
+      - opt_in_flag
+
+  MCPServer:
+    is_a: NamedEntity
+    mixins:
+      - HasDocumentation
+    class_uri: gsd:MCPServer
+    in_subset:
+      - gsd_core_surface
+    description: A Model Context Protocol server configuration or candidate.
+    slots:
+      - transport
+      - command
+      - args
+      - tools_root_path
+    slot_usage:
+      transport:
+        recommended: true
+
+  ResearchArtifact2:
+    is_a: NamedEntity
+    class_uri: gsd:ResearchArtifact2
+    in_subset:
+      - gsd_experimental
+    see_also:
+      - https://linkml.io/linkml/schemas/index.html
+    description: Output from research dispatch (milestone or slice research doc).
+    slots:
+      - artifact_kind
+      - path_pattern
+      - merged_mcp_server
+
+  ExecutionLane:
+    is_a: NamedEntity
+    class_uri: gsd:ExecutionLane
+    in_subset:
+      - gsd_experimental
+    description: Where delegated work runs (local, Docker, E2B, etc.).
+    slots:
+      - lane_id
+      - requires_api_key
+
+slots:
+  id:
+    identifier: true
+    range: string
+    description: Stable URI or CURIE-style id for the instance.
+    exact_mappings:
+      - dcterms:identifier
+
+  name:
+    range: string
+    description: Short human-readable name.
+
+  description:
+    range: string
+    description: Longer prose description.
+
+  phase:
+    range: CapabilityPhase
+    description: Planning / delivery phase bucket (P0–P5).
+
+  status:
+    range: ImplementationStatus
+    description: Lifecycle state of the capability.
+
+  related_env_vars:
+    range: EnvironmentVariable
+    multivalued: true
+    inlined_as_list: true
+    inverse: gates_capabilities
+    description: Env vars that gate or configure this capability.
+
+  gates_capabilities:
+    domain: EnvironmentVariable
+    range: Capability
+    multivalued: true
+    inlined_as_list: true
+    inverse: related_env_vars
+    description: Capabilities that depend on this environment variable.
+
+  documentation_uri:
+    range: uri
+    description: Link to maintainer or user documentation.
+    exact_mappings:
+      - rdfs:seeAlso
+    annotations:
+      tooling_rank: Prefer evergreen documentation URIs over ephemeral notes.
+
+  variable_name:
+    range: string
+    pattern: ^[A-Z][A-Z0-9_]*$
+    structured_pattern:
+      syntax: ^[A-Z][A-Z0-9_]*$
+      partial_match: false
+    description: Environment variable name (e.g. GSD_SHELL_HOOKS_ENABLED).
+
+  required_behavior:
+    range: string
+    description: Expected semantics when set, unset, or invalid.
+
+  is_gsd_prefixed:
+    range: boolean
+    description: True when the name starts with GSD_.
+
+  passthrough_only:
+    range: boolean
+    description: True when GSD must not break existing app/studio consumers.
+
+  hook_kind:
+    range: HookKind
+    description: Classification of hook (prompt-only vs shell run, etc.).
+
+  shell_command:
+    range: string
+    description: Executable line for run-type hooks.
+
+  timeout_seconds:
+    range: integer
+    minimum_value: 1
+    description: Upper bound on hook execution time.
+
+  opt_in_flag:
+    range: string
+    description: Env var or pref that must be truthy before dangerous hooks run.
+    deprecated: Prefer explicit hook_kind and shell_command guards; kept for backward compatibility notes.
+
+  transport:
+    range: string
+    description: MCP transport (e.g. stdio, sse).
+
+  command:
+    range: string
+    description: Server launch command.
+
+  args:
+    range: string
+    multivalued: true
+    inlined_as_list: true
+    description: Arguments passed to the MCP server command.
+
+  tools_root_path:
+    range: string
+    description: Filesystem root for bootstrap materialization (e.g. GSD_MCP_TOOLS_ROOT).
+
+  artifact_kind:
+    range: ResearchArtifactKind
+    description: Milestone vs slice research output.
+
+  path_pattern:
+    range: string
+    description: Filename or glob pattern (e.g. M*-RESEARCH.md).
+
+  merged_mcp_server:
+    range: MCPServer
+    description: Optional MCP server whose output is merged into the artifact.
+
+  lane_id:
+    range: string
+    description: Identifier for isolation lane (docker, e2b, overlay).
+
+  requires_api_key:
+    range: string
+    description: Env var name required for this lane, if any.
+
+enums:
+  CapabilityPhase:
+    enum_uri: gsd:CapabilityPhase
+    description: Phased rollout identifiers used in planning.
+    permissible_values:
+      P0_BEDROCK:
+        description: Bedrock auth / list-models discovery.
+        meaning: gsd:PhaseP0Bedrock
+      P1_RESEARCH:
+        description: Research CLI and MCP merge into research docs.
+      P2_SHELL_HOOKS:
+        description: Opt-in shell hooks in the change pipeline.
+      P3_MCP_BOOTSTRAP:
+        description: MCP server discovery and config materialization.
+      P4_LEARNING:
+        description: Learning overlays, synthesis, optional payload logging.
+      P5_SANDBOX:
+        description: Sandbox UX, Docker smoke, optional E2B lane.
+
+  ImplementationStatus:
+    enum_uri: gsd:ImplementationStatus
+    description: Delivery lifecycle label for a capability or work item.
+    permissible_values:
+      planned:
+        description: Captured in roadmap only.
+      in_progress:
+        description: Active implementation.
+      completed:
+        description: Shipped in CLI and tests green.
+        meaning: gsd:StatusCompleted
+      deprecated:
+        description: Retired; kept for historical docs only.
+        is_a: completed
+        deprecated: Use completed or planned instead; label retained for legacy reports.
+
+  HookKind:
+    enum_uri: gsd:HookKind
+    description: Where in the pipeline a hook participates and whether it executes shell.
+    permissible_values:
+      post_unit_prompt:
+        meaning: gsd:HookKindPostUnitPrompt
+      pre_dispatch_prompt:
+      post_unit_shell:
+      ci_shell:
+
+  ResearchArtifactKind:
+    enum_uri: gsd:ResearchArtifactKind
+    description: Distinguishes milestone research packs from slice-level write-ups.
+    permissible_values:
+      milestone_research:
+      slice_research:

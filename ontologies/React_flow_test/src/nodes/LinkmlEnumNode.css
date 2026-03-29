@@ -1,0 +1,40 @@
+/* ERD-style enum: header + value / note table */
+
+.lm-erd--enum .lm-erd__header--enum {
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.2) 0%, rgba(245, 158, 11, 0.06) 100%);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.lm-erd__header--enum {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.lm-erd__kind {
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #fbbf24;
+  opacity: 0.9;
+}
+
+.lm-erd__cell--hint {
+  font-size: 0.62rem;
+  color: var(--pf-text-muted, #8b95a8);
+  line-height: 1.3;
+}
+
+.lm-erd__cell--meaning {
+  font-size: 0.6rem;
+  font-family: ui-monospace, monospace;
+  color: #a5b4fc;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.lm-erd__table--enum .lm-erd__cell--slot {
+  color: #fcd34d;
+}

@@ -43,12 +43,12 @@ export function resetHookState(): void {
 
 // ─── Pre-Dispatch Hooks ────────────────────────────────────────────────────
 
-export function runPreDispatchHooks(
+export async function runPreDispatchHooks(
   unitType: string,
   unitId: string,
   prompt: string,
   basePath: string,
-): PreDispatchResult {
+): Promise<PreDispatchResult> {
   return getOrCreateRegistry().evaluatePreDispatch(unitType, unitId, prompt, basePath);
 }
 

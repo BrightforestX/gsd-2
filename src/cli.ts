@@ -58,6 +58,8 @@ interface CliFlags {
   messages: string[]
   web?: boolean
   webPath?: string
+  /** True when `-h` / `--help` appeared (may combine with a leading subcommand). */
+  help?: boolean
 
   /** Set by `gsd sessions` when the user picks a specific session to resume */
   _selectedSessionPath?: string
@@ -113,8 +115,7 @@ function parseCliArgs(argv: string[]): CliFlags {
         flags.worktree = true
       }
     } else if (arg === '--help' || arg === '-h') {
-      printHelp(process.env.GSD_VERSION || '0.0.0')
-      process.exit(0)
+      flags.help = true
     } else if (arg === '--web') {
       flags.web = true
       // Capture optional project path after --web (not a flag)
@@ -130,6 +131,16 @@ function parseCliArgs(argv: string[]): CliFlags {
 
 const cliFlags = parseCliArgs(process.argv)
 const isPrintMode = cliFlags.print || cliFlags.mode !== undefined
+
+if (cliFlags.help) {
+  const v = process.env.GSD_VERSION || '0.0.0'
+  const sub = cliFlags.messages[0]
+  if (sub && printSubcommandHelp(sub, v)) {
+    process.exit(0)
+  }
+  printHelp(v)
+  process.exit(0)
+}
 
 // Early resource-skew check — must run before TTY gate so version mismatch
 // errors surface even in non-TTY environments.
@@ -167,14 +178,6 @@ async function ensureRtkBootstrap(): Promise<void> {
   markStartup('bootstrapRtk')
   if (!rtkStatus.available && rtkStatus.supported && rtkStatus.enabled && rtkStatus.reason) {
     process.stderr.write(`[gsd] Warning: RTK unavailable — continuing without shell-command compression (${rtkStatus.reason}).\n`)
-  }
-}
-
-// `gsd <subcommand> --help` — show subcommand-specific help
-const subcommand = cliFlags.messages[0]
-if (subcommand && process.argv.includes('--help')) {
-  if (printSubcommandHelp(subcommand, process.env.GSD_VERSION || '0.0.0')) {
-    process.exit(0)
   }
 }
 
@@ -298,6 +301,33 @@ if (cliFlags.messages[0] === 'headless') {
   const { runHeadless, parseHeadlessArgs } = await import('./headless.js')
   await runHeadless(parseHeadlessArgs(process.argv))
   process.exit(0)
+}
+
+// `gsd research` — RESEARCH.md scaffold (+ optional MCP), same targets as dispatch research
+// Note: flags like `--milestone` are not in `cliFlags.messages` (parseCliArgs only collects non-flag tokens).
+if (cliFlags.messages[0] === 'research') {
+  const { runResearchCli } = await import('./research-cli.js')
+  const argvTail = process.argv.slice(2)
+  const ri = argvTail.indexOf('research')
+  const researchArgs = ri >= 0 ? argvTail.slice(ri + 1) : []
+  process.exit(await runResearchCli(researchArgs, process.cwd()))
+}
+
+// `gsd mcp bootstrap` — catalog dry-run / merge .mcp.json
+if (cliFlags.messages[0] === 'mcp' && cliFlags.messages[1] === 'bootstrap') {
+  const argvTail = process.argv.slice(2)
+  const bi = argvTail.indexOf('bootstrap')
+  const bootstrapArgs = bi >= 0 ? argvTail.slice(bi + 1) : []
+  const { runMcpBootstrapCli } = await import('./mcp-bootstrap-cli.js')
+  process.exit(await runMcpBootstrapCli(bootstrapArgs, process.cwd()))
+}
+
+if (cliFlags.messages[0] === 'learn') {
+  const { runLearnCli } = await import('./learn-cli.js')
+  const argvTail = process.argv.slice(2)
+  const li = argvTail.indexOf('learn')
+  const learnArgs = li >= 0 ? argvTail.slice(li + 1) : []
+  process.exit(await runLearnCli(learnArgs, process.cwd()))
 }
 
 // Pi's tool bootstrap can mis-detect already-installed fd/rg on some systems

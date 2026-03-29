@@ -143,6 +143,40 @@ const SUBCOMMAND_HELP: Record<string, string> = {
   ].join('\n'),
 }
 
+SUBCOMMAND_HELP['research'] = [
+  'Usage: gsd research [options]',
+  '',
+  'Writes Mxxx-RESEARCH.md or Sxx-RESEARCH.md with the same dispatch prompt as /gsd dispatch research.',
+  'Optional --mcp / --mcp-tool merges tool output into the document.',
+  '',
+  'Options:',
+  '  --milestone           Milestone-level research',
+  '  --slice                 Slice-level research',
+  '  --mcp <name>            MCP server (requires --mcp-tool)',
+  '  --mcp-tool <tool>       Tool to call',
+  '  --mcp-args <json>       JSON arguments object',
+  '',
+].join('\n')
+
+SUBCOMMAND_HELP['learn'] = [
+  'Usage: gsd learn apply | gsd learn --help',
+  '',
+  'Overlays: markdown under GSD_LEARN_OVERLAY_DIR (absolute) or',
+  '~/.gsd/agent/agents/overlays/<agent>.md is appended when subagents load.',
+  '',
+  '  apply    Stub for future model-backed synthesis (no-op today).',
+  '',
+].join('\n')
+
+SUBCOMMAND_HELP['mcp'] = [
+  'Usage: gsd mcp bootstrap [--dry-run | --apply --yes]',
+  '',
+  'Match the in-repo MCP catalog to this project and print a JSON dry-run plan.',
+  'With --apply --yes, merge stdio servers into .mcp.json and materialize markers',
+  'under GSD_MCP_TOOLS_ROOT (must be an absolute path).',
+  '',
+].join('\n')
+
 // Alias: `gsd wt --help` → same as `gsd worktree --help`
 SUBCOMMAND_HELP['wt'] = SUBCOMMAND_HELP['worktree']
 
@@ -169,6 +203,9 @@ export function printHelp(version: string): void {
   process.stdout.write('  update                   Update GSD to the latest version\n')
   process.stdout.write('  sessions                 List and resume a past session\n')
   process.stdout.write('  worktree <cmd>           Manage worktrees (list, merge, clean, remove)\n')
+  process.stdout.write('  research [opts]          Write RESEARCH.md scaffold (+ optional MCP)\n')
+  process.stdout.write('  learn [apply]            Learning overlays (merged at subagent load)\n')
+  process.stdout.write('  mcp bootstrap [opts]     MCP catalog dry-run / merge .mcp.json\n')
   process.stdout.write('  headless [cmd] [args]    Run /gsd commands without TUI (default: auto)\n')
   process.stdout.write('\nRun gsd <subcommand> --help for subcommand-specific help.\n')
 }

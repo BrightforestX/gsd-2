@@ -33,6 +33,19 @@
 | `/gsd remote` | Control remote auto-mode |
 | `/gsd help` | Categorized command reference with descriptions for all GSD subcommands |
 
+## Research, MCP bootstrap, and learn (CLI)
+
+These subcommands run from the shell (non-interactive–friendly). Slash equivalents are wired where noted.
+
+| Command | Description |
+|---------|-------------|
+| `gsd research …` | Generate milestone/slice research artifacts (`Mxxx-RESEARCH.md` / `Sxx-RESEARCH.md`), same targets as auto research; optional `--mcp <server>` to merge MCP tool output. |
+| `/gsd research …` | In-session research dispatch with the same runner. |
+| `gsd mcp bootstrap [--dry-run \| --apply --yes]` | Match in-repo MCP catalog signals, print a JSON dry-run plan, or merge stdio server entries into `.mcp.json` when `--apply` is used (**requires `GSD_MCP_TOOLS_ROOT`**). |
+| `/gsd mcp bootstrap …` | Same as CLI from the slash interface (dry-run vs apply). |
+| `gsd learn apply` | Stub hook for future synthesis; **learned overlays** already merge at subagent load from `GSD_LEARN_OVERLAY_DIR` or `~/.gsd/agent/agents/overlays/<agent>.md`. |
+| `gsd learn --help` | Usage and overlay paths. |
+
 ## Configuration & Diagnostics
 
 | Command | Description |

@@ -1,0 +1,6 @@
+{
+  "name": "@gsd/capabilities-py",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Workspace anchor for the Python gsd-capabilities package (see pyproject.toml)"
+}

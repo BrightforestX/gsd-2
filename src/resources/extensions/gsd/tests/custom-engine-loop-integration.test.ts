@@ -191,7 +191,7 @@ function makeMockDeps(overrides?: Partial<LoopDeps>): LoopDeps & { callLog: stri
       callLog.push("resolveDispatch");
       return { action: "dispatch" as const, unitType: "execute-task", unitId: "M001/S01/T01", prompt: "unused" };
     },
-    runPreDispatchHooks: () => ({ firedHooks: [], action: "proceed" }),
+    runPreDispatchHooks: async () => ({ firedHooks: [], action: "proceed" as const }),
     getPriorSliceCompletionBlocker: () => null,
     getMainBranch: () => "main",
     closeoutUnit: async () => {},

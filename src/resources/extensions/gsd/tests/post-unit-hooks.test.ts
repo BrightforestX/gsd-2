@@ -130,10 +130,10 @@ test('Variable substitution', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 // Phase 2: Pre-Dispatch Hook Tests
 // ═══════════════════════════════════════════════════════════════════════════
-test('Pre-dispatch: no hooks configured', () => {
+test('Pre-dispatch: no hooks configured', async () => {
   const base = createFixtureBase();
   try {
-    const result = runPreDispatchHooks("execute-task", "M001/S01/T01", "original prompt", base);
+    const result = await runPreDispatchHooks("execute-task", "M001/S01/T01", "original prompt", base);
     assert.deepStrictEqual(result.action, "proceed", "proceeds when no hooks");
     assert.deepStrictEqual(result.prompt, "original prompt", "prompt unchanged");
     assert.deepStrictEqual(result.firedHooks.length, 0, "no hooks fired");
@@ -142,10 +142,10 @@ test('Pre-dispatch: no hooks configured', () => {
   }
 });
 
-test('Pre-dispatch: hook units bypass', () => {
+test('Pre-dispatch: hook units bypass', async () => {
   const base = createFixtureBase();
   try {
-    const result = runPreDispatchHooks("hook/review", "M001/S01/T01", "hook prompt", base);
+    const result = await runPreDispatchHooks("hook/review", "M001/S01/T01", "hook prompt", base);
     assert.deepStrictEqual(result.action, "proceed", "hook units always proceed");
     assert.deepStrictEqual(result.prompt, "hook prompt", "hook prompt unchanged");
     assert.deepStrictEqual(result.firedHooks.length, 0, "no hooks fired for hook units");

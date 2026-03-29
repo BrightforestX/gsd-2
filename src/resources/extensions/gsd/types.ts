@@ -347,6 +347,14 @@ export interface NotificationPreferences {
 
 // ─── Pre-Dispatch Hook Types ──────────────────────────────────────────────
 
+export interface PreDispatchShellRunConfig {
+  command: string;
+  args?: string[];
+  cwd?: string;
+  /** Default 120_000 ms */
+  timeoutMs?: number;
+}
+
 export interface PreDispatchHookConfig {
   /** Unique hook identifier. */
   name: string;
@@ -354,6 +362,11 @@ export interface PreDispatchHookConfig {
   before: string[];
   /** Action to take: "modify" mutates the prompt, "skip" skips the unit, "replace" swaps it. */
   action: "modify" | "skip" | "replace";
+  /**
+   * Optional shell step (runs first when `GSD_SHELL_HOOKS_ENABLED` is truthy).
+   * When disabled, execution is skipped with a one-time debug notice.
+   */
+  run?: PreDispatchShellRunConfig;
   /** For "modify": text prepended to the unit prompt. Supports {milestoneId}, {sliceId}, {taskId}. */
   prepend?: string;
   /** For "modify": text appended to the unit prompt. Supports {milestoneId}, {sliceId}, {taskId}. */
@@ -372,13 +385,15 @@ export interface PreDispatchHookConfig {
 
 export interface PreDispatchResult {
   /** What happened: the unit proceeds with modifications, was skipped, or was replaced. */
-  action: "proceed" | "skip" | "replace";
+  action: "proceed" | "skip" | "replace" | "fail";
   /** Modified/replacement prompt (for "proceed" and "replace"). */
   prompt?: string;
   /** Override unit type (for "replace"). */
   unitType?: string;
   /** Model override. */
   model?: string;
+  /** When action is "fail" — surfaced to the user / journal. */
+  failMessage?: string;
   /** Names of hooks that fired, for logging. */
   firedHooks: string[];
 }

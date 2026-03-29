@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+    <html lang="en" class="scroll-smooth">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>required_behavior — slots</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.2.4/mermaid.min.js"></script>
+        <style>
+            .sidebar { height: calc(100vh - 4rem); }
+            .main-content { height: calc(100vh - 4rem); }
+            .search-highlight { background-color: rgba(145, 174, 183, 0.5); color: #000000; }
+            
+            @media print {
+                .no-print { display: none; }
+                .page-break { page-break-before: always; }
+            }
+            
+            .transition-transform {
+                transition: transform 0.3s ease-in-out;
+            }
+            
+            .rotate-180 {
+                transform: rotate(180deg);
+            }
+        </style>
+    </head>
+    <body class="bg-gray-100">
+        <div class="max-w-4xl mx-auto p-8"><div class="mb-6 p-4 bg-gray-50 rounded-lg"><a href="../visualization.html" class="text-blue-600 hover:underline">← Main visualization</a> · <a href="../hierarchy.html" class="text-blue-600 hover:underline">Hierarchy</a></div>
+        <div id="slots-required_behavior" data-searchable="true" data-type="slots" class="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow">
+            <div class="p-4">
+                <h3 class="text-lg font-semibold mb-2">required_behavior</h3>
+                
+                <div class="flex flex-wrap gap-2 mb-3">
+                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">Slots</span>
+                </div>
+                
+                <div class="text-sm text-gray-600 mb-3">
+                    Expected semantics when set, unset, or invalid.
+                </div>
+
+                <div id="slots-required_behavior-details" class="hidden border-t pt-3 mt-3">
+                    
+            <div class="mb-6 bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                <div class="px-4 py-3 border-b border-gray-200 bg-gray-50">
+                    <h4 class="text-sm font-medium text-gray-900">Core Properties</h4>
+                </div>
+                <div class="p-4">
+                    <dl class="grid grid-cols-1 gap-4">
+                        
+                            <div class="sm:grid sm:grid-cols-3 sm:gap-4">
+                                <dt class="text-sm font-medium text-gray-500">Description</dt>
+                                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">Expected semantics when set, unset, or invalid.</dd>
+                            </div>
+                            <div class="sm:grid sm:grid-cols-3 sm:gap-4">
+                                <dt class="text-sm font-medium text-gray-500">Range</dt>
+                                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2"><code class="px-2 py-1 bg-gray-100 rounded text-sm">string</code></dd>
+                            </div>
+                    </dl>
+                </div>
+            </div>
+            
+
+            <script>
+                function toggleEnumValues(enumId) {
+                    const container = document.getElementById(enumId);
+                    const button = event.currentTarget;
+                    const text = button.querySelector('.enum-toggle-text');
+                    const icon = button.querySelector('.enum-toggle-icon');
+                    
+                    if (container.classList.contains('hidden')) {
+                        container.classList.remove('hidden');
+                        text.textContent = 'Hide values';
+                        icon.classList.add('rotate-180');
+                    } else {
+                        container.classList.add('hidden');
+                        text.textContent = 'Show values';
+                        icon.classList.remove('rotate-180');
+                    }
+                }
+            </script>
+        
+                </div>
+            </div>
+
+            <button 
+                id="slots-required_behavior-button"
+                onclick="toggleDetails('slots-required_behavior-details')"
+                class="w-full p-2 text-sm text-gray-500 hover:bg-gray-50 border-t flex items-center justify-center gap-1">
+                <span class="details-text">Show more</span>
+                <svg class="h-4 w-4 transform transition-transform duration-200" 
+                     fill="none" 
+                     stroke="currentColor" 
+                     viewBox="0 0 24 24">
+                    <path stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          stroke-width="2" 
+                          d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+        </div>
+        </div>
+        <script>
+            // Initialize mermaid for diagrams
+            mermaid.initialize({ startOnLoad: true });
+
+            // Toggle Functions for Schema Sections
+            function toggleSection(sectionType) {
+                const list = document.getElementById(`${sectionType}-list`);
+                const icon = document.getElementById(`${sectionType}-icon`);
+                
+                if (list && icon) {
+                    // Toggle the list visibility
+                    if (list.classList.contains('hidden')) {
+                        list.classList.remove('hidden');
+                        icon.classList.add('rotate-180');
+                    } else {
+                        list.classList.add('hidden');
+                        icon.classList.remove('rotate-180');
+                    }
+                }
+            }
+
+            // Toggle Details for Elements
+            function toggleDetails(detailsId) {
+                const detailsElement = document.getElementById(detailsId);
+                if (!detailsElement) return;
+
+                // Find the parent card and then the button within it
+                const parentCard = detailsElement.closest('[data-searchable="true"]');
+                if (!parentCard) return;
+                
+                const button = parentCard.querySelector('button');
+                if (!button) return;
+
+                const buttonText = button.querySelector('.details-text');
+                const buttonIcon = button.querySelector('svg');
+                
+                if (detailsElement.classList.contains('hidden')) {
+                    // Show details
+                    detailsElement.classList.remove('hidden');
+                    buttonText.textContent = 'Show less';
+                    buttonIcon.classList.add('rotate-180');
+                } else {
+                    // Hide details
+                    detailsElement.classList.add('hidden');
+                    buttonText.textContent = 'Show more';
+                    buttonIcon.classList.remove('rotate-180');
+                }
+            }
+
+            // Initialize sidebar sections to be closed by default
+            document.addEventListener('DOMContentLoaded', function() {
+                // Update the counts but keep sections closed
+                const sections = document.querySelectorAll('[data-section-type]');
+                sections.forEach(section => {
+                    const sectionType = section.dataset.sectionType;
+                    const countElement = document.getElementById(`${sectionType}-count`);
+                    const list = document.getElementById(`${sectionType}-list`);
+                    
+                    if (list && countElement) {
+                        const items = list.querySelectorAll('[data-searchable="true"]');
+                        countElement.textContent = items.length;
+                    }
+                });
+            });
+
+            // Search Functionality
+            function filterElements() {
+                const query = document.getElementById('search-box').value.toLowerCase();
+                const elements = document.querySelectorAll('[data-searchable="true"]');
+                const sections = document.querySelectorAll('[data-section-type]');
+                
+                const totalCounts = {};
+                elements.forEach(el => {
+                    const type = el.dataset.type;
+                    if (!totalCounts[type]) {
+                        totalCounts[type] = 0;
+                    }
+                    totalCounts[type]++;
+                });
+
+                let visibleCount = {};
+
+                elements.forEach(el => {
+                    el.style.display = '';
+                    el.classList.remove('search-highlight');
+                });
+
+                if (query) {
+                    elements.forEach(el => {
+                        const text = el.textContent.toLowerCase();
+                        const type = el.dataset.type;
+
+                        if (!visibleCount[type]) {
+                            visibleCount[type] = 0;
+                        }
+
+                        if (text.includes(query)) {
+                            el.style.display = '';
+                            el.classList.add('search-highlight');
+                            visibleCount[type]++;
+                            
+                            // Show parent section when item matches
+                            const parentSection = el.closest('[data-section-type]');
+                            if (parentSection) {
+                                const sectionType = parentSection.dataset.sectionType;
+                                const list = document.getElementById(`${sectionType}-list`);
+                                const icon = document.getElementById(`${sectionType}-icon`);
+                                if (list) {
+                                    list.classList.remove('hidden');
+                                }
+                                if (icon) {
+                                    icon.classList.add('rotate-180');
+                                }
+                            }
+                        } else {
+                            el.style.display = 'none';
+                        }
+                    });
+
+                    // Update counts for filtered results
+                    Object.keys(totalCounts).forEach(type => {
+                        const countElement = document.getElementById(`${type}-count`);
+                        if (countElement) {
+                            countElement.textContent = visibleCount[type] || 0;
+                        }
+                    });
+                } else {
+                    // Reset search state
+                    sections.forEach(section => {
+                        const sectionType = section.dataset.sectionType;
+                        const list = document.getElementById(`${sectionType}-list`);
+                        const icon = document.getElementById(`${sectionType}-icon`);
+                        const countElement = document.getElementById(`${sectionType}-count`);
+                        
+                        if (list) {
+                            list.classList.add('hidden');
+                            // Get actual count of items in this section
+                            const items = list.querySelectorAll('[data-searchable="true"]');
+                            if (countElement) {
+                                countElement.textContent = items.length;
+                            }
+                        }
+                        
+                        if (icon) {
+                            icon.classList.remove('rotate-180');
+                        }
+                    });
+                }
+            }
+        </script>
+    </body>
+    </html>

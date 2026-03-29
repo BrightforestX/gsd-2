@@ -47,6 +47,8 @@ export type {
   AutoSupervisorConfig,
   RemoteQuestionsConfig,
   CmuxPreferences,
+  GSDExecutionIsolation,
+  GSDExecutionPreferences,
   GSDPreferences,
   LoadedGSDPreferences,
   SkillResolution,
@@ -354,6 +356,9 @@ function mergePreferences(base: GSDPreferences, override: GSDPreferences): GSDPr
     show_token_cost: override.show_token_cost ?? base.show_token_cost,
     experimental: (base.experimental || override.experimental)
       ? { ...(base.experimental ?? {}), ...(override.experimental ?? {}) }
+      : undefined,
+    execution: (base.execution || override.execution)
+      ? { ...(base.execution ?? {}), ...(override.execution ?? {}) }
       : undefined,
   };
 }
