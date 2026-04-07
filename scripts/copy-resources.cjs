@@ -43,10 +43,16 @@ rmSync('dist/resources', { recursive: true, force: true });
 
 const tscBin = require.resolve('typescript/bin/tsc');
 const compile = spawnSync(process.execPath, [tscBin, '--project', 'tsconfig.resources.json'], {
-  stdio: 'inherit',
+  encoding: 'utf8',
+  stdio: ['inherit', 'pipe', 'pipe'],
 });
 
 if (compile.status !== 0) {
+  const out = [compile.stdout, compile.stderr].filter(Boolean).join('\n').trim();
+  // Use stdout so remote sandboxes (e.g. Daytona execute) that only surface stdout still show the error.
+  process.stdout.write(
+    (out ? `[gsd] tsconfig.resources.json compile failed:\n${out}\n` : '[gsd] tsconfig.resources.json compile failed (no output)\n'),
+  );
   process.exit(compile.status ?? 1);
 }
 
