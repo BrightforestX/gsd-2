@@ -49,10 +49,18 @@ const compile = spawnSync(process.execPath, [tscBin, '--project', 'tsconfig.reso
 
 if (compile.status !== 0) {
   const out = [compile.stdout, compile.stderr].filter(Boolean).join('\n').trim();
+  const meta = `status=${compile.status} signal=${compile.signal ?? ''} err=${compile.error ? compile.error.message : ''}`;
   // Use stdout so remote sandboxes (e.g. Daytona execute) that only surface stdout still show the error.
   process.stdout.write(
-    (out ? `[gsd] tsconfig.resources.json compile failed:\n${out}\n` : '[gsd] tsconfig.resources.json compile failed (no output)\n'),
+    (out
+      ? `[gsd] tsconfig.resources.json compile failed (${meta})\n${out}\n`
+      : `[gsd] tsconfig.resources.json compile failed (${meta})\n`),
   );
+  if (compile.signal === 'SIGKILL' || compile.signal === 'SIGTERM') {
+    process.stdout.write(
+      '[gsd] hint: child tsc was killed (often OOM in small sandboxes). Try NODE_OPTIONS=--max-old-space-size=8192 or a larger Daytona snapshot.\n',
+    );
+  }
   process.exit(compile.status ?? 1);
 }
 
