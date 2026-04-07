@@ -18,9 +18,18 @@
  *
  * For EventSource (SSE), which cannot send custom headers, the token is
  * appended as a `?_token=` query parameter instead.
+ *
+ * For reverse proxies / preview tunnels (e.g. Daytona) that drop URL fragments,
+ * the launcher may append `?token=<hex>` or `?_token=<hex>`. Those are read on
+ * first load, persisted like the hash token, then stripped from the query string.
+ * Prefer `#token=` when possible (fragments are not sent to servers on navigation).
+ *
+ * `authFetch` also appends `?_token=` on same-origin `/api/*` URLs: some preview
+ * edges strip `Authorization` headers; the server proxy accepts `_token` (see web/proxy.ts).
  */
 
-const AUTH_STORAGE_KEY = "gsd-auth-token"
+/** Persisted by the client and by `auth-bootstrap-script` (beforeInteractive). */
+export const AUTH_STORAGE_KEY = "gsd-auth-token"
 
 let cachedToken: string | null = null
 
@@ -54,6 +63,24 @@ export function getAuthToken(): string | null {
       window.history.replaceState(null, "", window.location.pathname + window.location.search)
       return cachedToken
     }
+  }
+
+  // 1b. Query string (preview tunnels may omit #fragment; px daytona gsd-web appends ?token=)
+  const params = new URLSearchParams(window.location.search)
+  const qpRaw = params.get("token") ?? params.get("_token")
+  if (qpRaw && /^[a-fA-F0-9]+$/.test(qpRaw)) {
+    cachedToken = qpRaw
+    try {
+      localStorage.setItem(AUTH_STORAGE_KEY, cachedToken)
+    } catch {
+      // ignore
+    }
+    params.delete("token")
+    params.delete("_token")
+    const next = params.toString()
+    const qs = next ? `?${next}` : ""
+    window.history.replaceState(null, "", `${window.location.pathname}${qs}`)
+    return cachedToken
   }
 
   // 2. Fall back to localStorage (page refresh, second tab, bookmark without hash)
@@ -99,11 +126,36 @@ export function authHeaders(extra?: Record<string, string>): Record<string, stri
 /**
  * Wrapper around `fetch()` that automatically injects the auth token.
  *
- * When no token is available (missing `#token=` fragment and no localStorage
+ * When no token is available (missing `#token=` / `?token=` and no localStorage
  * entry), returns a synthetic 401 Response instead of making an unauthenticated
  * request that will fail server-side anyway. This lets callers handle the
  * missing-token case uniformly rather than silently cascading 401s.
  */
+/** Same-origin /api/* fetch target with `_token` for tunnel proxies that strip Authorization. */
+function withApiUnderscoreToken(input: RequestInfo | URL, token: string): RequestInfo | URL {
+  if (typeof window === "undefined") return input
+
+  if (typeof input === "string") {
+    const u = new URL(input, window.location.origin)
+    if (u.origin !== window.location.origin) return input
+    if (!u.pathname.startsWith("/api/")) return input
+    if (u.searchParams.has("_token") || u.searchParams.has("token")) return input
+    u.searchParams.set("_token", token)
+    return u.pathname + u.search
+  }
+
+  if (input instanceof URL) {
+    const u = new URL(input.href)
+    if (u.origin !== window.location.origin) return input
+    if (!u.pathname.startsWith("/api/")) return input
+    if (u.searchParams.has("_token") || u.searchParams.has("token")) return input
+    u.searchParams.set("_token", token)
+    return new URL(u.pathname + u.search, u.origin)
+  }
+
+  return input
+}
+
 export async function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const token = getAuthToken()
   if (!token) {
@@ -118,7 +170,8 @@ export async function authFetch(input: RequestInfo | URL, init?: RequestInit): P
     headers.set("Authorization", `Bearer ${token}`)
   }
 
-  return fetch(input, { ...init, headers })
+  const target = withApiUnderscoreToken(input, token)
+  return fetch(target, { ...init, headers })
 }
 
 /**

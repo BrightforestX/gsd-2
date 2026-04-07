@@ -262,7 +262,9 @@ function WorkspaceChrome() {
             This workspace requires an auth token. Copy the full URL from your terminal
             (including the{" "}
             <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">#token=…</code>{" "}
-            part) or restart with{" "}
+            fragment or a{" "}
+            <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">?token=…</code>{" "}
+            query from your launcher) or restart with{" "}
             <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">gsd --web</code>.
           </p>
         </div>

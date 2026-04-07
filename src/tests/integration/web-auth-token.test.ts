@@ -77,6 +77,14 @@ test('proxy.ts accepts _token query parameter as fallback authentication', () =>
   assert.match(proxySource, /_token/, 'proxy should support _token query parameter for SSE/sendBeacon')
 })
 
+test('proxy.ts accepts token query parameter for preview URLs', () => {
+  assert.match(proxySource, /get\("token"\)/, 'proxy should accept token query param alongside _token')
+})
+
+test('proxy.ts skips origin check when binding to 0.0.0.0 (tunnel previews)', () => {
+  assert.match(proxySource, /0\.0\.0\.0/, 'proxy should skip strict origin check for bind-all host')
+})
+
 test('proxy.ts validates bearer token from Authorization header', () => {
   assert.match(proxySource, /Bearer/, 'proxy should check Authorization: Bearer header')
 })

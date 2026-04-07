@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from 'next'
+import Script from 'next/script'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Toaster } from '@/components/ui/sonner'
 import { ThemeProvider } from '@/components/theme-provider'
+import { authBootstrapInlineScript } from '@/lib/auth-bootstrap-script'
 import './globals.css'
 
 const geistSans = Geist({
@@ -51,6 +53,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
+        <Script
+          id="gsd-auth-bootstrap"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: authBootstrapInlineScript }}
+        />
         <ThemeProvider attribute="class" defaultTheme="dark">
           {children}
           <Toaster position="bottom-right" />

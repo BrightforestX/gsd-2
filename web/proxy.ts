@@ -9,7 +9,10 @@ import { NextResponse, type NextRequest } from "next/server"
  * EventSource API cannot set custom headers.
  *
  * Additionally, if an `Origin` header is present, it must match the expected
- * localhost origin to prevent cross-site request forgery.
+ * localhost origin to prevent cross-site request forgery — except when
+ * `GSD_WEB_HOST` is `0.0.0.0` (bind-all / tunnel previews): then only the
+ * bearer token gates API access. Override with `GSD_WEB_SKIP_ORIGIN_CHECK=1` or
+ * `GSD_WEB_TRUST_TUNNEL=1` if needed.
  */
 export function proxy(request: NextRequest): NextResponse | undefined {
   const { pathname } = request.nextUrl
@@ -25,13 +28,20 @@ export function proxy(request: NextRequest): NextResponse | undefined {
   }
 
   // ── Origin / CORS check ────────────────────────────────────────────
-  const origin = request.headers.get("origin")
-  if (origin) {
-    const host = process.env.GSD_WEB_HOST || "127.0.0.1"
-    const port = process.env.GSD_WEB_PORT || "3000"
+  const bindHost = process.env.GSD_WEB_HOST || "127.0.0.1"
+  const port = process.env.GSD_WEB_PORT || "3000"
+  // Binding to 0.0.0.0 means the UI may be reached via a tunnel/preview URL
+  // (e.g. Daytona). Browsers never send Origin: http://0.0.0.0:port — only the
+  // real public https:// origin. Rely on the bearer token for those cases.
+  const skipOriginCheck =
+    bindHost === "0.0.0.0" ||
+    process.env.GSD_WEB_SKIP_ORIGIN_CHECK === "1" ||
+    process.env.GSD_WEB_TRUST_TUNNEL === "1"
 
+  const origin = request.headers.get("origin")
+  if (!skipOriginCheck && origin) {
     // Default: localhost origin for the launched host:port
-    const allowed = new Set([`http://${host}:${port}`])
+    const allowed = new Set([`http://${bindHost}:${port}`])
 
     // GSD_WEB_ALLOWED_ORIGINS lets users whitelist additional origins for
     // secure tunnel setups (Tailscale Serve, Cloudflare Tunnel, ngrok, etc.)
@@ -60,9 +70,12 @@ export function proxy(request: NextRequest): NextResponse | undefined {
     token = authHeader.slice(7)
   }
 
-  // 2. Query parameter fallback for EventSource / SSE
+  // 2. Query parameter fallback for EventSource / SSE and preview URLs (?token=)
   if (!token) {
     token = request.nextUrl.searchParams.get("_token")
+  }
+  if (!token) {
+    token = request.nextUrl.searchParams.get("token")
   }
 
   if (!token || token !== expectedToken) {
